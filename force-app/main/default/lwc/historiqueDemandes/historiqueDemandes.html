@@ -1,0 +1,14 @@
+<template>
+    <lightning-card title="Historique des demandes">
+        <template if:true={demandes}>
+            <lightning-datatable
+                key-field="Id"
+                data={demandes}
+                columns={columns}>
+            </lightning-datatable>
+        </template>
+        <template if:true={error}>
+            <p class="slds-text-color_error">{error}</p>
+        </template>
+    </lightning-card>
+</template>
