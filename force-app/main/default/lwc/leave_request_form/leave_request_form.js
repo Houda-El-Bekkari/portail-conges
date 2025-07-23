@@ -5,7 +5,7 @@ import { getPicklistValues, getObjectInfo } from 'lightning/uiObjectInfoApi';
 import createRequest from '@salesforce/apex/Leave_Request_Controller.createRequest';
 import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateRequest';
 import getRequests from '@salesforce/apex/Leave_Request_Controller.getRequests';
-import cancelRequest from '@salesforce/apex/Leave_Request_Controller.cancelRequest';
+import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
 import getRequest from '@salesforce/apex/Leave_Request_Controller.getRequest';
 
 export default class Leave_request_form extends LightningElement {
@@ -125,7 +125,7 @@ export default class Leave_request_form extends LightningElement {
     handleCancel(event) {
         const requestId = event.target.dataset.id;
         
-        cancelRequest({ requestId: requestId })
+        deleteRequest({ requestId: requestId })
             .then(() => {
                 this.showToast('Success', 'Leave request cancelled successfully', 'success');
                 return refreshApex(this.req);
