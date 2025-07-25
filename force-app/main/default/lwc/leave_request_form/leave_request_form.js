@@ -2,11 +2,17 @@ import { LightningElement, wire, track } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { refreshApex } from '@salesforce/apex';
 import { getPicklistValues, getObjectInfo } from 'lightning/uiObjectInfoApi';
+
 import createRequest from '@salesforce/apex/Leave_Request_Controller.createRequest';
 import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateRequest';
 import getRequests from '@salesforce/apex/Leave_Request_Controller.getRequests';
 import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
-import getRequest from '@salesforce/apex/Leave_Request_Controller.getRequest';
+
+import flatpickrBase from '@salesforce/resourceUrl/flatpickr';
+const flatpickrJs = flatpickrBase + '/flatpickr.min.js';
+const flatpickrCss = flatpickrBase + '/flatpickr.min.css';
+
+import { loadScript, loadStyle } from 'lightning/platformResourceLoader';
 
 export default class Leave_request_form extends LightningElement {
     @track startDate = '';
@@ -17,22 +23,22 @@ export default class Leave_request_form extends LightningElement {
     @track editingRequestId = null;
     @track isEditMode = false;
 
+    flatpickrInitialized = false;
+
     @wire(getObjectInfo, { objectApiName: 'Leave_Request__c' })
     objectInfo;
 
-    // Wire to get picklist values for Type field
-    @wire(getPicklistValues, { 
-        recordTypeId: '$objectInfo.data.defaultRecordTypeId', 
-        fieldApiName: 'Leave_Request__c.Type__c' 
+    @wire(getPicklistValues, {
+        recordTypeId: '$objectInfo.data.defaultRecordTypeId',
+        fieldApiName: 'Leave_Request__c.Type__c'
     })
     typePicklistValues;
 
-    // Options for leave type combobox - now dynamically loaded from Salesforce
     get typeOptions() {
         if (this.typePicklistValues.data) {
-            return this.typePicklistValues.data.values.map(picklistValue => ({
-                label: picklistValue.label,
-                value: picklistValue.value
+            return this.typePicklistValues.data.values.map(p => ({
+                label: p.label,
+                value: p.value
             }));
         }
         return [];
@@ -46,12 +52,54 @@ export default class Leave_request_form extends LightningElement {
         return this.isEditMode ? 'Update Request' : 'Submit Request';
     }
 
-    handleStartDateChange(event) {
-        this.startDate = event.target.value;
-    }
+    renderedCallback() {
+        if (this.flatpickrInitialized) return;
+        this.flatpickrInitialized = true;
 
-    handleEndDateChange(event) {
-        this.endDate = event.target.value;
+        Promise.all([
+            loadScript(this, flatpickrJs),
+            loadStyle(this, flatpickrCss)
+        ])
+        .then(() => {
+            const startContainer = this.template.querySelector('[data-id="startDate"]');
+            const endContainer = this.template.querySelector('[data-id="endDate"]');
+
+            const startInput = document.createElement('input');
+            const endInput = document.createElement('input');
+
+            startInput.type = 'text';
+            endInput.type = 'text';
+
+            startContainer.appendChild(startInput);
+            endContainer.appendChild(endInput);
+
+            const disableDates = [
+                '2025-01-01', '2025-07-14', '2025-12-25'
+            ];
+
+            const disableWeekends = (date) => {
+                return (date.getDay() === 0 || date.getDay() === 6);
+            };
+
+            flatpickr(startInput, {
+                dateFormat: 'Y-m-d',
+                onChange: (selectedDates, dateStr) => {
+                    this.startDate = dateStr;
+                },
+                disable: [disableWeekends, ...disableDates]
+            });
+
+            flatpickr(endInput, {
+                dateFormat: 'Y-m-d',
+                onChange: (selectedDates, dateStr) => {
+                    this.endDate = dateStr;
+                },
+                disable: [disableWeekends, ...disableDates]
+            });
+        })
+        .catch(error => {
+            console.error('Erreur de chargement Flatpickr', error);
+        });
     }
 
     handleReasonChange(event) {
@@ -78,24 +126,20 @@ export default class Leave_request_form extends LightningElement {
             Type__c: this.type
         };
 
-        // Add Id if we're in edit mode
         if (this.isEditMode && this.editingRequestId) {
             leaveRequest.Id = this.editingRequestId;
         }
 
         const operation = this.isEditMode ? updateRequest : createRequest;
-        const operationName = this.isEditMode ? 'updated' : 'created';
 
         operation({ request: leaveRequest })
-            .then(result => {
-                console.log(`Leave request ${operationName} successfully:`, result);
-                this.showToast('Success', `Leave request ${operationName} successfully`, 'success');
+            .then(() => {
+                this.showToast('Success', 'Request submitted', 'success');
                 this.resetForm();
                 return refreshApex(this.req);
             })
             .catch(error => {
-                console.error(`Error ${operationName.slice(0, -1)}ing leave request:`, error);
-                this.showToast('Error', error.body ? error.body.message : 'An error occurred', 'error');
+                this.showToast('Error', error.body?.message || 'Submission failed', 'error');
             })
             .finally(() => {
                 this.isLoading = false;
@@ -105,7 +149,7 @@ export default class Leave_request_form extends LightningElement {
     handleEdit(event) {
         const requestId = event.target.dataset.id;
         const request = this.requests.find(req => req.Id === requestId);
-        
+
         if (request && request.Status__c === 'Pending') {
             this.isEditMode = true;
             this.editingRequestId = requestId;
@@ -113,8 +157,6 @@ export default class Leave_request_form extends LightningElement {
             this.endDate = request.End_Date__c;
             this.reason = request.Reason__c || '';
             this.type = request.Type__c || '';
-        } else {
-            this.showToast('Error', 'Only pending requests can be edited', 'error');
         }
     }
 
@@ -124,14 +166,13 @@ export default class Leave_request_form extends LightningElement {
 
     handleCancel(event) {
         const requestId = event.target.dataset.id;
-        
-        deleteRequest({ requestId: requestId })
+        deleteRequest({ requestId })
             .then(() => {
-                this.showToast('Success', 'Leave request cancelled successfully', 'success');
+                this.showToast('Success', 'Request cancelled', 'success');
                 return refreshApex(this.req);
             })
             .catch(error => {
-                this.showToast('Error', error.body?.message || 'Error cancelling request', 'error');
+                this.showToast('Error', error.body?.message || 'Cancel failed', 'error');
             });
     }
 
@@ -145,14 +186,11 @@ export default class Leave_request_form extends LightningElement {
     }
 
     showToast(title, message, variant) {
-        const evt = new ShowToastEvent({
-            title: title,
-            message: message,
-            variant: variant
-        });
-        this.dispatchEvent(evt);
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }
+
     @wire(getRequests) req;
+
     get requests() {
         if (this.req.data) {
             return this.req.data.map(request => ({

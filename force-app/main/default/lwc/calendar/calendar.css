@@ -1,0 +1,186 @@
+/* Calendar Container */
+.calendar-container {
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* Calendar Header */
+.calendar-header {
+    align-items: center;
+}
+
+.calendar-header h2 {
+    margin: 0;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Calendar Header Row (Week Days) */
+.calendar-header-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background-color: #f3f3f3;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.calendar-header-cell {
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #3e3e3c;
+    border-right: 1px solid #e5e5e5;
+}
+
+.calendar-header-cell:last-child {
+    border-right: none;
+}
+
+/* Calendar Weeks */
+.calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+/* Calendar Days */
+.calendar-day {
+    min-height: 80px;
+    padding: 8px;
+    border-right: 1px solid #e5e5e5;
+    border-bottom: 1px solid #e5e5e5;
+    cursor: pointer;
+    position: relative;
+    background-color: #ffffff;
+    transition: background-color 0.2s ease;
+}
+
+.calendar-day:last-child {
+    border-right: none;
+}
+
+.calendar-day:hover {
+    background-color: #f8f9fa;
+}
+
+/* Day States */
+.calendar-day.other-month {
+    background-color: #f8f9fa;
+    color: #c9c7c5;
+    cursor: default;
+}
+
+.calendar-day.other-month:hover {
+    background-color: #f8f9fa;
+}
+
+.calendar-day.today {
+    background-color: #0176d3;
+    color: white;
+}
+
+.calendar-day.today:hover {
+    background-color: #014486;
+}
+
+.calendar-day.has-leave {
+    background-color: #fef7e0;
+    border-left: 4px solid #fe9339;
+}
+
+.calendar-day.has-leave:hover {
+    background-color: #fef2d3;
+}
+
+.calendar-day.today.has-leave {
+    background-color: #0176d3;
+    border-left: 4px solid #ffffff;
+}
+
+/* Day Number */
+.day-number {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+/* Leave Indicators */
+.leave-indicators {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin-top: 4px;
+}
+
+.leave-indicator {
+    background-color: #fe9339;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 1px;
+}
+
+.calendar-day.today .leave-indicator {
+    background-color: #ffffff;
+}
+
+.calendar-day.today .leave-indicator lightning-icon {
+    --slds-c-icon-color-foreground-default: #0176d3;
+}
+
+/* Legend */
+.calendar-legend {
+    border-top: 1px solid #e5e5e5;
+    padding-top: 16px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.today-indicator {
+    background-color: #0176d3;
+}
+
+.pending-indicator {
+    background-color: #fe9339;
+}
+
+.approved-indicator {
+    background-color: #2e844a;
+}
+
+.rejected-indicator {
+    background-color: #c23934;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .calendar-day {
+        min-height: 60px;
+        padding: 4px;
+    }
+    
+    .calendar-header-cell {
+        padding: 8px 4px;
+        font-size: 0.875rem;
+    }
+    
+    .day-number {
+        font-size: 0.875rem;
+    }
+    
+    .leave-indicator {
+        width: 12px;
+        height: 12px;
+    }
+}

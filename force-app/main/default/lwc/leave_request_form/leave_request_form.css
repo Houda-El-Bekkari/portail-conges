@@ -1,0 +1,16 @@
+.weekend-day {
+    background-color: #cce5ff !important;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.holiday-day {
+    background-color: #fff3cd !important;
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.selected-day {
+    background-color: #d4edda !important;
+    border: 2px solid green !important;
+}
