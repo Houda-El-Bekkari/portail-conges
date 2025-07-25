@@ -1,5 +1,61 @@
 <template>
-    <div style="background:#ffffff;" class="slds-grid">
-      <div id="calendar" class="fullcalendarjs"></div>
-    </div>
+    <lightning-card title={formTitle}>
+        <div class="slds-m-around_medium">
+            <div class="slds-grid slds-wrap">
+                <!-- Date Selection Section -->
+                <div class="slds-col slds-size_1-of-2 slds-p-right_medium">
+                    <div class="slds-form-element">
+                        <label class="slds-form-element__label">Start Date</label>
+                        <div class="slds-form-element__control">
+                            <lightning-input type="date" value={startDate} onchange={handleStartDateChange} disabled></lightning-input>
+                        </div>
+                    </div>
+
+                    <div class="slds-form-element slds-m-top_small">
+                        <label class="slds-form-element__label">End Date</label>
+                        <div class="slds-form-element__control">
+                            <lightning-input type="date" value={endDate} onchange={handleEndDateChange} disabled></lightning-input>
+                        </div>
+                    </div>
+
+                    <lightning-input type="text" label="Reason" value={reason} onchange={handleReasonChange} class="slds-m-top_small"></lightning-input>
+
+                    <lightning-combobox label="Leave Type" value={type} options={typeOptions} onchange={handleTypeChange} class="slds-m-top_small"></lightning-combobox>
+
+                    <div class="slds-m-top_medium">
+                        <lightning-button label={submitButtonLabel} onclick={handleSubmit} variant="brand" disabled={isLoading}></lightning-button>
+                        <lightning-button if:true={isEditMode} label="Cancel" onclick={handleCancelEdit} variant="neutral" class="slds-m-left_small"></lightning-button>
+                    </div>
+                </div>
+
+                <!-- Calendar Section -->
+                <div class="slds-col slds-size_1-of-2">
+                    <label class="slds-form-element__label slds-m-bottom_small">Select dates on the calendar</label>
+                    <div style="background:#ffffff;" class="slds-box">
+                        <div id="calendar" class="fullcalendarjs"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </lightning-card>
+
+    <!-- Requests List -->
+    <lightning-card if:true={requests.length} title="Leave Requests" class="slds-m-top_medium">
+        <div class="slds-m-around_medium">
+            <template for:each={requests} for:item="request">
+                <div key={request.Id} class="slds-box slds-m-bottom_small slds-grid slds-grid_align-spread">
+                    <div class="slds-col">
+                        <strong>{request.Start_Date__c} - {request.End_Date__c}</strong><br/>
+                        Status: {request.Status__c}<br/>
+                        <span if:true={request.Reason__c}>Reason: {request.Reason__c}<br/></span>
+                        <span if:true={request.Type__c}>Type: {request.Type__c}</span>
+                    </div>
+                    <div class="slds-col slds-no-flex" if:true={request.isPending}>
+                        <lightning-button label="Edit" data-id={request.Id} onclick={handleEdit} variant="neutral" size="small" class="slds-m-right_x-small"></lightning-button>
+                        <lightning-button label="Cancel" data-id={request.Id} onclick={handleCancel} variant="destructive" size="small"></lightning-button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
 </template>
