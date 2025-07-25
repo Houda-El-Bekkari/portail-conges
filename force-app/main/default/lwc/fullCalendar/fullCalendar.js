@@ -10,8 +10,15 @@ import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateReque
 import getRequests from '@salesforce/apex/Leave_Request_Controller.getRequests';
 import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
 
+import flatpickrBase from '@salesforce/resourceUrl/flatpickr';
+const flatpickrJs = flatpickrBase + '/flatpickr.min.js';
+const flatpickrCss = flatpickrBase + '/flatpickr.min.css';
+
 export default class Calender extends LightningElement {
     jsInitialised = false;
+    flatpickrInitialized = false;
+    startDatePicker = null;
+    endDatePicker = null;
     @track _events;
     @track startDate = '';
     @track endDate = '';
@@ -85,10 +92,13 @@ export default class Calender extends LightningElement {
       loadScript(this, FullCalendarJS + '/FullCalenderV3/jquery.min.js'),
       loadScript(this, FullCalendarJS + '/FullCalenderV3/moment.min.js'),
       loadScript(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.js'),
-      loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css')
+      loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css'),
+      loadScript(this, flatpickrJs),
+      loadStyle(this, flatpickrCss)
     ])
     .then(() => {
       this.initialiseCalendarJs();
+      this.initializeFlatpickr();
     })
     .catch(error => {
         alert(error);
@@ -98,6 +108,47 @@ export default class Calender extends LightningElement {
             variant: 'error'
         })
     })
+  }
+
+  initializeFlatpickr() {
+    if (this.flatpickrInitialized) return;
+    this.flatpickrInitialized = true;
+
+    const startContainer = this.template.querySelector('[data-id="startDate"]');
+    const endContainer = this.template.querySelector('[data-id="endDate"]');
+
+    const startInput = document.createElement('input');
+    const endInput = document.createElement('input');
+
+    startInput.type = 'text';
+    endInput.type = 'text';
+
+    startContainer.appendChild(startInput);
+    endContainer.appendChild(endInput);
+
+    const disableDates = [
+        '2025-01-01', '2025-07-14', '2025-12-25'
+    ];
+
+    const disableWeekends = (date) => {
+        return (date.getDay() === 0 || date.getDay() === 6);
+    };
+
+    this.startDatePicker = flatpickr(startInput, {
+        dateFormat: 'Y-m-d',
+        onChange: (selectedDates, dateStr) => {
+            this.startDate = dateStr;
+        },
+        disable: [disableWeekends, ...disableDates]
+    });
+
+    this.endDatePicker = flatpickr(endInput, {
+        dateFormat: 'Y-m-d',
+        onChange: (selectedDates, dateStr) => {
+            this.endDate = dateStr;
+        },
+        disable: [disableWeekends, ...disableDates]
+    });
   }
 
   initialiseCalendarJs() { 
@@ -142,6 +193,14 @@ export default class Calender extends LightningElement {
     // Convert moment objects to date strings
     this.startDate = start.format('YYYY-MM-DD');
     this.endDate = end.subtract(1, 'day').format('YYYY-MM-DD'); // Subtract 1 day as FullCalendar end is exclusive
+    
+    // Update the flatpickr inputs to reflect the calendar selection
+    if (this.startDatePicker) {
+      this.startDatePicker.setDate(this.startDate, false); // false prevents triggering onChange
+    }
+    if (this.endDatePicker) {
+      this.endDatePicker.setDate(this.endDate, false); // false prevents triggering onChange
+    }
   }
 
   handleStartDateChange(event) {

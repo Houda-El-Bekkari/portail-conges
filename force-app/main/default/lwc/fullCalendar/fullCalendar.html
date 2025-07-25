@@ -6,16 +6,12 @@
                 <div class="slds-col slds-size_1-of-2 slds-p-right_medium">
                     <div class="slds-form-element">
                         <label class="slds-form-element__label">Start Date</label>
-                        <div class="slds-form-element__control">
-                            <lightning-input type="date" value={startDate} onchange={handleStartDateChange} disabled></lightning-input>
-                        </div>
+                        <div class="date-input" data-id="startDate" lwc:dom="manual"></div>
                     </div>
 
                     <div class="slds-form-element slds-m-top_small">
                         <label class="slds-form-element__label">End Date</label>
-                        <div class="slds-form-element__control">
-                            <lightning-input type="date" value={endDate} onchange={handleEndDateChange} disabled></lightning-input>
-                        </div>
+                        <div class="date-input" data-id="endDate" lwc:dom="manual"></div>
                     </div>
 
                     <lightning-input type="text" label="Reason" value={reason} onchange={handleReasonChange} class="slds-m-top_small"></lightning-input>
