@@ -1,0 +1,103 @@
+<template>
+    <lightning-card title="Leave Calendar">
+        <div class="slds-m-around_medium">
+            <!-- Calendar Header with Navigation -->
+            <div class="calendar-header slds-grid slds-grid_align-spread slds-m-bottom_medium">
+                <lightning-button-icon 
+                    icon-name="utility:chevronleft" 
+                    alternative-text="Previous Month"
+                    title="Previous Month"
+                    onclick={handlePreviousMonth}
+                    variant="border-filled">
+                </lightning-button-icon>
+                
+                <h2 class="slds-text-heading_medium">{monthYear}</h2>
+                
+                <lightning-button-icon 
+                    icon-name="utility:chevronright" 
+                    alternative-text="Next Month"
+                    title="Next Month"
+                    onclick={handleNextMonth}
+                    variant="border-filled">
+                </lightning-button-icon>
+            </div>
+            
+            <div class="slds-m-bottom_small">
+                <lightning-button 
+                    label="Today" 
+                    onclick={handleToday}
+                    variant="neutral"
+                    size="small">
+                </lightning-button>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="calendar-container">
+                <!-- Week Day Headers -->
+                <div class="calendar-header-row">
+                    <template for:each={weekDays} for:item="weekDay">
+                        <div key={weekDay} class="calendar-header-cell">
+                            {weekDay}
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Calendar Weeks -->
+                <template for:each={calendarData} for:item="week">
+                    <div key={week} class="calendar-week">
+                        <template for:each={week} for:item="day">
+                            <div 
+                                key={day.day} 
+                                class={day.cssClass}
+                                data-day-data={day.dayDataJson}
+                                onclick={handleDayClick}>
+                                
+                                <div class="day-number">
+                                    {day.day}
+                                </div>
+                                
+                                <!-- Leave Indicators -->
+                                <template if:true={day.hasLeave}>
+                                    <div class="leave-indicators">
+                                        <template for:each={day.leaveRequests} for:item="request">
+                                            <div key={request.Id} class="leave-indicator">
+                                                <lightning-icon 
+                                                    icon-name="utility:event" 
+                                                    size="xx-small"
+                                                    variant="inverse">
+                                                </lightning-icon>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Legend -->
+            <div class="calendar-legend slds-m-top_medium">
+                <h3 class="slds-text-heading_small slds-m-bottom_small">Legend:</h3>
+                <div class="slds-grid slds-wrap">
+                    <div class="legend-item slds-m-right_medium slds-m-bottom_x-small">
+                        <span class="legend-color today-indicator"></span>
+                        <span class="slds-m-left_x-small">Today</span>
+                    </div>
+                    <div class="legend-item slds-m-right_medium slds-m-bottom_x-small">
+                        <span class="legend-color pending-indicator"></span>
+                        <span class="slds-m-left_x-small">Pending Leave</span>
+                    </div>
+                    <div class="legend-item slds-m-right_medium slds-m-bottom_x-small">
+                        <span class="legend-color approved-indicator"></span>
+                        <span class="slds-m-left_x-small">Approved Leave</span>
+                    </div>
+                    <div class="legend-item slds-m-right_medium slds-m-bottom_x-small">
+                        <span class="legend-color rejected-indicator"></span>
+                        <span class="slds-m-left_x-small">Rejected Leave</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </lightning-card>
+</template>
