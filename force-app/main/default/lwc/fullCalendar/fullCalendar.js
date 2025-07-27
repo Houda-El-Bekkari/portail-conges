@@ -9,16 +9,21 @@ import createRequest from '@salesforce/apex/Leave_Request_Controller.createReque
 import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateRequest';
 import getRequests from '@salesforce/apex/Leave_Request_Controller.getRequests';
 import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
+import getMyRequests from '@salesforce/apex/Leave_Request_Controller.getMyRequests';
 
 import flatpickrBase from '@salesforce/resourceUrl/flatpickr';
 const flatpickrJs = flatpickrBase + '/flatpickr.min.js';
 const flatpickrCss = flatpickrBase + '/flatpickr.min.css';
 
 export default class Calender extends LightningElement {
+    // Component state
     jsInitialised = false;
     flatpickrInitialized = false;
     startDatePicker = null;
     endDatePicker = null;
+    disabledDates = ['2025-01-01', '2025-07-14', '2025-12-25'];
+    
+    // Form data
     @track _events;
     @track startDate = '';
     @track endDate = '';
@@ -28,7 +33,7 @@ export default class Calender extends LightningElement {
     @track editingRequestId = null;
     @track isEditMode = false;
 
-    //----------------- get Types list -----------------
+    // ========== WIRE SERVICES & GETTERS ==========
     @wire(getObjectInfo, { objectApiName: 'Leave_Request__c' })
     objectInfo;
 
@@ -38,6 +43,8 @@ export default class Calender extends LightningElement {
     })
     typePicklistValues;
     
+    @wire(getMyRequests) req;
+
     get typeOptions() {
         if (this.typePicklistValues.data) {
             return this.typePicklistValues.data.values.map(p => ({
@@ -46,8 +53,7 @@ export default class Calender extends LightningElement {
             }));
         }
         return [];
-    }    
-    //-------------------------
+    }
 
     get formTitle() {
         return this.isEditMode ? 'Edit Leave Request' : 'Leave Request Form';
@@ -57,6 +63,17 @@ export default class Calender extends LightningElement {
         return this.isEditMode ? 'Update Request' : 'Submit Request';
     }
 
+    get requests() {
+        if (this.req.data) {
+            return this.req.data.map(request => ({
+                ...request,
+                isPending: request.Status__c === 'Pending'
+            }));
+        }
+        return [];
+    }
+
+    // ========== CALENDAR EVENTS API ==========
     @api
     get events() {
         return this._events;
@@ -65,248 +82,245 @@ export default class Calender extends LightningElement {
         this._events=[...value];
     }
 
-
     @api
     get eventDataString() {
         return this.events;
     }
     set eventDataString(value) {
-        try
-        {
+        try {
             this.events=eval(value);
-        }
-        catch{
+        } catch {
            this.events=[];
         }
     }
 
-  renderedCallback() {
+    // ========== COMPONENT LIFECYCLE ==========
+    renderedCallback() {
+        // Only initialize once
+        if (this.jsInitialised) return;
+        this.jsInitialised = true;
 
-    // Performs this operation only on first render
-    if (this.jsInitialised) {
-      return;
-    }
-    this.jsInitialised = true;
-
-    Promise.all([
-      loadScript(this, FullCalendarJS + '/FullCalenderV3/jquery.min.js'),
-      loadScript(this, FullCalendarJS + '/FullCalenderV3/moment.min.js'),
-      loadScript(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.js'),
-      loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css'),
-      loadScript(this, flatpickrJs),
-      loadStyle(this, flatpickrCss)
-    ])
-    .then(() => {
-      this.initialiseCalendarJs();
-      this.initializeFlatpickr();
-    })
-    .catch(error => {
-        alert(error);
-        new ShowToastEvent({
-            title: 'Error!',
-            message: error,
-            variant: 'error'
+        // Load all required scripts and styles
+        Promise.all([
+            loadScript(this, FullCalendarJS + '/FullCalenderV3/jquery.min.js'),
+            loadScript(this, FullCalendarJS + '/FullCalenderV3/moment.min.js'),
+            loadScript(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.js'),
+            loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css'),
+            loadScript(this, flatpickrJs),
+            loadStyle(this, flatpickrCss)
+        ])
+        .then(() => {
+            this.initializeCalendar();
+            this.initializeDatePickers();
         })
-    })
-  }
+        .catch(error => {
+            console.error('Failed to load calendar resources:', error);
+            this.showToast('Error', 'Failed to load calendar', 'error');
+        });
+    }
 
-  initializeFlatpickr() {
-    if (this.flatpickrInitialized) return;
-    this.flatpickrInitialized = true;
+    // ========== DATE PICKER INITIALIZATION ==========
+    initializeDatePickers() {
+        if (this.flatpickrInitialized) return;
+        this.flatpickrInitialized = true;
 
-    const startContainer = this.template.querySelector('[data-id="startDate"]');
-    const endContainer = this.template.querySelector('[data-id="endDate"]');
+        // Create input containers
+        const startContainer = this.template.querySelector('[data-id="startDate"]');
+        const endContainer = this.template.querySelector('[data-id="endDate"]');
+        const startInput = document.createElement('input');
+        const endInput = document.createElement('input');
+        
+        startInput.type = 'text';
+        endInput.type = 'text';
+        startContainer.appendChild(startInput);
+        endContainer.appendChild(endInput);
 
-    const startInput = document.createElement('input');
-    const endInput = document.createElement('input');
+        // Disable weekends and holidays
+        const disableWeekends = (date) => (date.getDay() === 0 || date.getDay() === 6);
+        const disableOptions = [disableWeekends, ...this.disabledDates];
 
-    startInput.type = 'text';
-    endInput.type = 'text';
+        // Initialize flatpickr instances
+        this.startDatePicker = flatpickr(startInput, {
+            dateFormat: 'Y-m-d',
+            onChange: (selectedDates, dateStr) => { this.startDate = dateStr; },
+            disable: disableOptions
+        });
 
-    startContainer.appendChild(startInput);
-    endContainer.appendChild(endInput);
+        this.endDatePicker = flatpickr(endInput, {
+            dateFormat: 'Y-m-d',
+            onChange: (selectedDates, dateStr) => { this.endDate = dateStr; },
+            disable: disableOptions
+        });
+    }
 
-    const disableDates = [
-        '2025-01-01', '2025-07-14', '2025-12-25'
-    ];
+    // ========== CALENDAR INITIALIZATION ==========
+    initializeCalendar() { 
+        const calendarElement = this.template.querySelector('div.fullcalendarjs');
+        const self = this;
 
-    const disableWeekends = (date) => {
-        return (date.getDay() === 0 || date.getDay() === 6);
-    };
+        $(calendarElement).fullCalendar({
+            // Calendar configuration
+            header: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'month,basicWeek,basicDay'
+            },
+            defaultDate: new Date(),
+            navLinks: true, 
+            editable: true,
+            eventLimit: true,
+            events: this.events,
+            dragScroll: true,
+            droppable: true,
+            weekNumbers: true,
+            selectable: true,
+            
+            // Selection constraints
+            selectConstraint: { dow: [1, 2, 3, 4, 5] }, // Monday to Friday only
+            selectAllow: function(selectInfo) {
+                const day = selectInfo.start.day();
+                const dateStr = selectInfo.start.format('YYYY-MM-DD');
+                
+                // Block weekends and holidays
+                if (day === 0 || day === 6) return false;
+                if (self.disabledDates.includes(dateStr)) return false;
+                
+                return true;
+            },
+            
+            // Style weekends and holidays
+            dayRender: function(date, cell) {
+                const dateStr = date.format('YYYY-MM-DD');
+                const isWeekend = (date.day() === 0 || date.day() === 6);
+                const isHoliday = self.disabledDates.includes(dateStr);
+                
+                if (isWeekend || isHoliday) {
+                    cell.css({
+                        'background-color': '#f3f3f3',
+                        'color': '#666',
+                        'cursor': 'not-allowed'
+                    });
+                    cell.addClass(isWeekend ? 'weekend-cell' : 'disabled-date');
+                }
+            },
+            
+            // Handle date selection
+            select: function(start, end) {
+                self.handleDateSelection(start, end);
+            },
+            
+            // Handle event clicks
+            eventClick: function (info) {
+                const selectedEvent = new CustomEvent('eventclicked', { detail: info.Id });
+                self.dispatchEvent(selectedEvent);
+            }
+        });
+    }
 
-    this.startDatePicker = flatpickr(startInput, {
-        dateFormat: 'Y-m-d',
-        onChange: (selectedDates, dateStr) => {
-            this.startDate = dateStr;
-        },
-        disable: [disableWeekends, ...disableDates]
-    });
+    // ========== EVENT HANDLERS ==========
+    handleDateSelection(start, end) {
+        // Update form with selected date range
+        this.startDate = start.format('YYYY-MM-DD');
+        this.endDate = end.subtract(1, 'day').format('YYYY-MM-DD'); // FullCalendar end is exclusive
+        
+        // Sync with date pickers
+        if (this.startDatePicker) this.startDatePicker.setDate(this.startDate, false);
+        if (this.endDatePicker) this.endDatePicker.setDate(this.endDate, false);
+    }
 
-    this.endDatePicker = flatpickr(endInput, {
-        dateFormat: 'Y-m-d',
-        onChange: (selectedDates, dateStr) => {
-            this.endDate = dateStr;
-        },
-        disable: [disableWeekends, ...disableDates]
-    });
-  }
+    handleReasonChange(event) {
+        this.reason = event.target.value;
+    }
 
-  initialiseCalendarJs() { 
-    var that=this;
-    const ele = this.template.querySelector('div.fullcalendarjs');
-    //Use jQuery to instantiate fullcalender JS
-    $(ele).fullCalendar({
-      header: {
-          left: 'prev,next today',
-          center: 'title',
-          right: 'month,basicWeek,basicDay'
-      },
-      defaultDate: new Date(),
-      navLinks: true, 
-      editable: true,
-      eventLimit: true,
-      events: this.events,
-      dragScroll:true,
-      droppable:true,
-      weekNumbers:true,
-      selectable:true,
-      selectConstraint: {
-        dow: [1, 2, 3, 4, 5]
-      },
-      selectAllow: function(selectInfo) {
-        var day = selectInfo.start.day();
-        return day !== 0 && day !== 6;
-      },
-      select: function(start, end) {
-        // Handle date range selection
-        that.handleDateSelection(start, end);
-      },
-      //eventClick: this.eventClick,
-      eventClick: function (info) {
-        const selectedEvent = new CustomEvent('eventclicked', { detail: info.Id });
-        that.dispatchEvent(selectedEvent);
+    handleTypeChange(event) {
+        this.type = event.target.value;
+    }
+
+    // ========== FORM SUBMISSION ==========
+    handleSubmit() {
+        // Validate dates
+        if (new Date(this.startDate) > new Date(this.endDate)) {
+            this.showToast('Error', 'Start date cannot be after end date', 'error');
+            return;
         }
-    });
-  }
+        if (new Date(this.startDate) < new Date()) {
+            this.showToast('Error', 'Start date cannot be in the past', 'error');
+            return;
+        }
 
-  handleDateSelection(start, end) {
-    // Convert moment objects to date strings
-    this.startDate = start.format('YYYY-MM-DD');
-    this.endDate = end.subtract(1, 'day').format('YYYY-MM-DD'); // Subtract 1 day as FullCalendar end is exclusive
-    
-    // Update the flatpickr inputs to reflect the calendar selection
-    if (this.startDatePicker) {
-      this.startDatePicker.setDate(this.startDate, false); // false prevents triggering onChange
-    }
-    if (this.endDatePicker) {
-      this.endDatePicker.setDate(this.endDate, false); // false prevents triggering onChange
-    }
-  }
+        this.isLoading = true;
 
-  handleStartDateChange(event) {
-    this.startDate = event.target.value;
-  }
+        // Prepare request data
+        const leaveRequest = {
+            sobjectType: 'Leave_Request__c',
+            Start_Date__c: this.startDate,
+            End_Date__c: this.endDate,
+            Reason__c: this.reason,
+            Type__c: this.type
+        };
 
-  handleEndDateChange(event) {
-    this.endDate = event.target.value;
-  }
+        if (this.isEditMode && this.editingRequestId) {
+            leaveRequest.Id = this.editingRequestId;
+        }
 
-  handleReasonChange(event) {
-    this.reason = event.target.value;
-  }
-
-  handleTypeChange(event) {
-    this.type = event.target.value;
-  }
-
-  handleSubmit() {
-    if (new Date(this.startDate) > new Date(this.endDate)) {
-      this.showToast('Error', 'Start date cannot be after end date', 'error');
-      return;
+        // Submit request
+        const operation = this.isEditMode ? updateRequest : createRequest;
+        operation({ request: leaveRequest })
+            .then(() => {
+                this.showToast('Success', 'Request submitted', 'success');
+                this.resetForm();
+                return refreshApex(this.req);
+            })
+            .catch(error => {
+                this.showToast('Error', error.body?.message || 'Submission failed', 'error');
+            })
+            .finally(() => {
+                this.isLoading = false;
+            });
     }
 
-    this.isLoading = true;
+    // ========== REQUEST MANAGEMENT ==========
+    handleEdit(event) {
+        const requestId = event.target.dataset.id;
+        const request = this.requests.find(req => req.Id === requestId);
 
-    const leaveRequest = {
-      sobjectType: 'Leave_Request__c',
-      Start_Date__c: this.startDate,
-      End_Date__c: this.endDate,
-      Reason__c: this.reason,
-      Type__c: this.type
-    };
-
-    if (this.isEditMode && this.editingRequestId) {
-      leaveRequest.Id = this.editingRequestId;
+        if (request && request.Status__c === 'Pending') {
+            this.isEditMode = true;
+            this.editingRequestId = requestId;
+            this.startDate = request.Start_Date__c;
+            this.endDate = request.End_Date__c;
+            this.reason = request.Reason__c || '';
+            this.type = request.Type__c || '';
+        }
     }
 
-    const operation = this.isEditMode ? updateRequest : createRequest;
-
-    operation({ request: leaveRequest })
-      .then(() => {
-        this.showToast('Success', 'Request submitted', 'success');
+    handleCancelEdit() {
         this.resetForm();
-        return refreshApex(this.req);
-      })
-      .catch(error => {
-        this.showToast('Error', error.body?.message || 'Submission failed', 'error');
-      })
-      .finally(() => {
-        this.isLoading = false;
-      });
-  }
-
-  handleEdit(event) {
-    const requestId = event.target.dataset.id;
-    const request = this.requests.find(req => req.Id === requestId);
-
-    if (request && request.Status__c === 'Pending') {
-      this.isEditMode = true;
-      this.editingRequestId = requestId;
-      this.startDate = request.Start_Date__c;
-      this.endDate = request.End_Date__c;
-      this.reason = request.Reason__c || '';
-      this.type = request.Type__c || '';
     }
-  }
 
-  handleCancelEdit() {
-    this.resetForm();
-  }
-
-  handleCancel(event) {
-    const requestId = event.target.dataset.id;
-    deleteRequest({ requestId })
-      .then(() => {
-        this.showToast('Success', 'Request cancelled', 'success');
-        return refreshApex(this.req);
-      })
-      .catch(error => {
-        this.showToast('Error', error.body?.message || 'Cancel failed', 'error');
-      });
-  }
-
-  resetForm() {
-    this.startDate = '';
-    this.endDate = '';
-    this.reason = '';
-    this.type = '';
-    this.isEditMode = false;
-    this.editingRequestId = null;
-  }
-
-  showToast(title, message, variant) {
-    this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
-  }
-
-  @wire(getRequests) req;
-
-  get requests() {
-    if (this.req.data) {
-      return this.req.data.map(request => ({
-        ...request,
-        isPending: request.Status__c === 'Pending'
-      }));
+    handleCancel(event) {
+        const requestId = event.target.dataset.id;
+        deleteRequest({ requestId })
+            .then(() => {
+                this.showToast('Success', 'Request cancelled', 'success');
+                return refreshApex(this.req);
+            })
+            .catch(error => {
+                this.showToast('Error', error.body?.message || 'Cancel failed', 'error');
+            });
     }
-    return [];
-  }
+
+    // ========== UTILITY METHODS ==========
+    resetForm() {
+        this.startDate = '';
+        this.endDate = '';
+        this.reason = '';
+        this.type = '';
+        this.isEditMode = false;
+        this.editingRequestId = null;
+    }
+
+    showToast(title, message, variant) {
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
+    }
 }

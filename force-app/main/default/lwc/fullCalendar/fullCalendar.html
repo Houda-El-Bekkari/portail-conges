@@ -14,7 +14,7 @@
                         <div class="date-input" data-id="endDate" lwc:dom="manual"></div>
                     </div>
 
-                    <lightning-input type="text" label="Reason" value={reason} onchange={handleReasonChange} class="slds-m-top_small"></lightning-input>
+                    <lightning-input type="text" label="Description" value={reason} onchange={handleReasonChange} class="slds-m-top_small"></lightning-input>
 
                     <lightning-combobox label="Leave Type" value={type} options={typeOptions} onchange={handleTypeChange} class="slds-m-top_small"></lightning-combobox>
 
@@ -54,4 +54,20 @@
             </template>
         </div>
     </lightning-card>
+    <c-historique-demandes>
+       
+    <lightning-card title="Historique des demandes">
+        <template if:true={demandes}>
+            <lightning-datatable
+                key-field="Id"
+                data={demandes}
+                columns={columns}>
+            </lightning-datatable>
+        </template>
+        <template if:true={error}>
+            <p class="slds-text-color_error">{error}</p>
+        </template>
+    </lightning-card>
+
+    </c-historique-demandes>
 </template>
