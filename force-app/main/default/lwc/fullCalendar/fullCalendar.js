@@ -7,9 +7,11 @@ import { getPicklistValues, getObjectInfo } from 'lightning/uiObjectInfoApi';
 
 import createRequest from '@salesforce/apex/Leave_Request_Controller.createRequest';
 import getHolidays from '@salesforce/apex/HolidayService.getHolidays';
+import getHolidays_MA from '@salesforce/apex/HolidayService.getHolidays_MA';
 import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateRequest';
 import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
 import getMyRequests from '@salesforce/apex/Leave_Request_Controller.getMyRequests';
+import approveRequest from '@salesforce/apex/Leave_Request_Controller.approveRequest';
 
 import flatpickrBase from '@salesforce/resourceUrl/flatpickr';
 const flatpickrJs = flatpickrBase + '/flatpickr.min.js';
@@ -22,18 +24,39 @@ export default class Calender extends LightningElement {
     startDatePicker = null;
     endDatePicker = null;
     @track disabledDates = [];
+    @track holidayLabels = {};
+
 
     // Method to fetch holidays from the API
     // Method to fetch holidays from the API
 async fetchHolidays() {
     try {
-        const data = await getHolidays(); // ['2025-01-01', '2025-12-25', ...]
+        const data = await getHolidays_MA(); // [{ date: '2025-01-01', name: 'Nouvel An' }, ...]
         console.log('Fetched holidays:', data);
-        this.disabledDates = data || [];
+
+        // Stocker les noms avec les dates
+        this.disabledDates = data.map(item => item.date);
+        this.holidayLabels = data.reduce((acc, item) => {
+            acc[item.date] = item.name;
+            return acc;
+        }, {});
     } catch (error) {
         console.error("Error fetching holidays:", error);
         this.showToast("Error", "Failed to load holidays", "error");
     }
+}
+
+handleApprove(event) {
+    const requestId = event.target.dataset.id;
+
+    approveRequest({ requestId })
+        .then(() => {
+            this.showToast('Succès', 'Demande approuvée et solde mis à jour.', 'success');
+            return refreshApex(this.req);
+        })
+        .catch(error => {
+            this.showToast('Erreur', error.body?.message || 'Erreur d’approbation', 'error');
+        });
 }
 
     
@@ -208,19 +231,30 @@ async fetchHolidays() {
             
             // Style weekends and holidays
             dayRender: function(date, cell) {
-                const dateStr = date.format('YYYY-MM-DD');
-                const isWeekend = (date.day() === 0 || date.day() === 6);
-                const isHoliday = self.disabledDates.includes(dateStr);
-                
-                if (isWeekend || isHoliday) {
-                    cell.css({
-                        'background-color': '#f3f3f3',
-                        'color': '#666',
-                        'cursor': 'not-allowed'
-                    });
-                    cell.addClass(isWeekend ? 'weekend-cell' : 'disabled-date');
-                }
-            },
+    const dateStr = date.format('YYYY-MM-DD');
+    const isWeekend = (date.day() === 0 || date.day() === 6);
+    const isHoliday = self.disabledDates.includes(dateStr);
+
+    if (isWeekend || isHoliday) {
+        cell.css({
+            'background-color': '#f3f3f3',
+            'color': '#666',
+            'cursor': 'not-allowed'
+        });
+        cell.addClass(isWeekend ? 'weekend-cell' : 'disabled-date');
+
+        // Ajoute un label s’il y a un nom de jour férié
+        const label = self.holidayLabels[dateStr];
+        if (label) {
+            const labelElement = document.createElement('div');
+            labelElement.textContent = label;
+            labelElement.style.fontSize = '0.7rem';
+            labelElement.style.marginTop = '3px';
+            labelElement.style.color = '#b30000';
+            cell.append(labelElement);
+        }
+    }
+},
             
             // Handle date selection
             select: function(start, end) {
