@@ -6,6 +6,7 @@ import { refreshApex } from '@salesforce/apex';
 import { getPicklistValues, getObjectInfo } from 'lightning/uiObjectInfoApi';
 
 import createRequest from '@salesforce/apex/Leave_Request_Controller.createRequest';
+import getHolidays from '@salesforce/apex/HolidayService.getHolidays';
 import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateRequest';
 import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
 import getMyRequests from '@salesforce/apex/Leave_Request_Controller.getMyRequests';
@@ -20,7 +21,21 @@ export default class Calender extends LightningElement {
     flatpickrInitialized = false;
     startDatePicker = null;
     endDatePicker = null;
-    disabledDates = ['2025-01-01', '2025-07-14', '2025-12-25'];
+    @track disabledDates = [];
+
+    // Method to fetch holidays from the API
+    // Method to fetch holidays from the API
+async fetchHolidays() {
+    try {
+        const data = await getHolidays(); // ['2025-01-01', '2025-12-25', ...]
+        console.log('Fetched holidays:', data);
+        this.disabledDates = data || [];
+    } catch (error) {
+        console.error("Error fetching holidays:", error);
+        this.showToast("Error", "Failed to load holidays", "error");
+    }
+}
+
     
     // Form data
     @track _events;
@@ -31,6 +46,7 @@ export default class Calender extends LightningElement {
     @track isLoading = false;
     @track editingRequestId = null;
     @track isEditMode = false;
+    @track requestsData = []; // Track requests data separately
 
     // ========== WIRE SERVICES & GETTERS ==========
     @wire(getObjectInfo, { objectApiName: 'Leave_Request__c' })
@@ -42,7 +58,21 @@ export default class Calender extends LightningElement {
     })
     typePicklistValues;
     
-    @wire(getMyRequests) req;
+    @wire(getMyRequests) 
+    wiredRequests(result) {
+        this.req = result;
+        if (result.data) {
+            // Update tracked property to force re-render
+            this.requestsData = result.data.map(request => ({
+                ...request,
+                isPending: request.Status__c === 'Pending'
+            }));
+            this.refreshCalendarEvents();
+        } else if (result.error) {
+            console.error('Error loading requests:', result.error);
+            this.requestsData = [];
+        }
+    }
 
     get typeOptions() {
         if (this.typePicklistValues.data) {
@@ -63,13 +93,7 @@ export default class Calender extends LightningElement {
     }
 
     get requests() {
-        if (this.req.data) {
-            return this.req.data.map(request => ({
-                ...request,
-                isPending: request.Status__c === 'Pending'
-            }));
-        }
-        return [];
+        return this.requestsData;
     }
 
     // ========== CALENDAR EVENTS API ==========
@@ -95,59 +119,54 @@ export default class Calender extends LightningElement {
 
     // ========== COMPONENT LIFECYCLE ==========
     renderedCallback() {
-        // Only initialize once
-        if (this.jsInitialised) return;
-        this.jsInitialised = true;
+    if (this.jsInitialised) return;
+    this.jsInitialised = true;
 
-        // Load all required scripts and styles
-        Promise.all([
-            loadScript(this, FullCalendarJS + '/FullCalenderV3/jquery.min.js'),
-            loadScript(this, FullCalendarJS + '/FullCalenderV3/moment.min.js'),
-            loadScript(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.js'),
-            loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css'),
-            loadScript(this, flatpickrJs),
-            loadStyle(this, flatpickrCss)
-        ])
-        .then(() => {
-            this.initializeCalendar();
-            this.initializeDatePickers();
-        })
-        .catch(error => {
-            console.error('Failed to load calendar resources:', error);
-            this.showToast('Error', 'Failed to load calendar', 'error');
-        });
-    }
+    Promise.all([
+        loadScript(this, FullCalendarJS + '/FullCalenderV3/jquery.min.js'),
+        loadScript(this, FullCalendarJS + '/FullCalenderV3/moment.min.js'),
+        loadScript(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.js'),
+        loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css'),
+        loadScript(this, flatpickrJs),
+        loadStyle(this, flatpickrCss)
+    ])
+    .then(async () => {
+        await this.fetchHolidays(); // 👈 Important : attendre les dates fériées
+        this.initializeCalendar();  // 👈 Ensuite on initialise
+        this.initializeDatePickers();
+    })
+    .catch(error => {
+        console.error('Failed to load calendar resources:', error);
+        this.showToast('Error', 'Failed to load calendar', 'error');
+    });
+}
+
 
     // ========== DATE PICKER INITIALIZATION ==========
     initializeDatePickers() {
         if (this.flatpickrInitialized) return;
         this.flatpickrInitialized = true;
 
-        // Create input containers
-        const startContainer = this.template.querySelector('[data-id="startDate"]');
-        const endContainer = this.template.querySelector('[data-id="endDate"]');
-        const startInput = document.createElement('input');
-        const endInput = document.createElement('input');
-        
-        startInput.type = 'text';
-        endInput.type = 'text';
-        startContainer.appendChild(startInput);
-        endContainer.appendChild(endInput);
-
         // Disable weekends and holidays
         const disableWeekends = (date) => (date.getDay() === 0 || date.getDay() === 6);
-        const disableOptions = [disableWeekends, ...this.disabledDates];
+        const holidayDatesForFlatpickr = this.disabledDates.map(dateStr => new Date(dateStr));
+        const disableOptions = [disableWeekends, ...holidayDatesForFlatpickr];
 
-        // Initialize flatpickr instances
-        this.startDatePicker = flatpickr(startInput, {
-            dateFormat: 'Y-m-d',
-            onChange: (selectedDates, dateStr) => { this.startDate = dateStr; },
-            disable: disableOptions
-        });
+        // Create both date pickers
+        this.startDatePicker = this.createDatePicker('startDate', (dateStr) => { this.startDate = dateStr; }, disableOptions);
+        this.endDatePicker = this.createDatePicker('endDate', (dateStr) => { this.endDate = dateStr; }, disableOptions);
+    }
 
-        this.endDatePicker = flatpickr(endInput, {
+    // Helper method to create a date picker
+    createDatePicker(containerId, onChangeCallback, disableOptions) {
+        const container = this.template.querySelector(`[data-id="${containerId}"]`);
+        const input = document.createElement('input');
+        input.type = 'text';
+        container.appendChild(input);
+
+        return flatpickr(input, {
             dateFormat: 'Y-m-d',
-            onChange: (selectedDates, dateStr) => { this.endDate = dateStr; },
+            onChange: (selectedDates, dateStr) => onChangeCallback(dateStr),
             disable: disableOptions
         });
     }
@@ -168,7 +187,7 @@ export default class Calender extends LightningElement {
             navLinks: true, 
             editable: true,
             eventLimit: true,
-            events: this.events,
+            events: [], // Start with empty events, will be populated later
             dragScroll: true,
             droppable: true,
             weekNumbers: true,
@@ -209,11 +228,117 @@ export default class Calender extends LightningElement {
             },
             
             // Handle event clicks
-            eventClick: function (info) {
-                const selectedEvent = new CustomEvent('eventclicked', { detail: info.Id });
-                self.dispatchEvent(selectedEvent);
+            eventClick: function (calEvent, jsEvent, view) {
+                // Show request details when clicking on a request event
+                self.handleRequestEventClick(calEvent);
             }
         });
+        
+        // Load initial events after calendar is created
+        this.loadCalendarEvents();
+    }
+
+    // Convert leave requests to calendar events
+    getCalendarEvents() {
+        if (!this.requests || this.requests.length === 0) return [];
+        
+        return this.requests.map(request => {
+            // Determine color based on leave type
+            let color = this.getColorForType(request.Type__c);
+            
+            // Add opacity based on status (optional - for additional visual feedback)
+            let backgroundColor = color;
+            let borderColor = color;
+            
+            switch(request.Status__c) {
+                case 'Approved':
+                    // Keep full opacity for approved
+                    break;
+                case 'Rejected':
+                    // Darker border for rejected
+                    borderColor = '#000000';
+                    backgroundColor = color + '80'; // Add transparency
+                    break;
+                case 'Pending':
+                    // Dashed border for pending (will be handled in CSS)
+                    break;
+            }
+
+            return {
+                id: request.Id,
+                title: `${request.Type__c || 'Leave'} - ${request.Status__c}`,
+                start: request.Start_Date__c,
+                end: this.addDaysToDate(request.End_Date__c, 1), // FullCalendar end is exclusive
+                color: backgroundColor,
+                borderColor: borderColor,
+                allDay: true,
+                requestData: request, // Store original request data
+                className: `status-${request.Status__c?.toLowerCase() || 'unknown'}` // CSS class for additional styling
+            };
+        });
+    }
+
+    // Get color based on leave type
+    getColorForType(type) {
+        const typeColors = {
+            'Sick Leave': '#dc3545',
+            'Training Leave': '#28a745',
+            'Vacation': '#17a2b8',
+
+        };
+
+        return typeColors[type] || '#6c757d'; // Default gray
+    }
+
+    // Helper method to add days to a date string
+    addDaysToDate(dateStr, days) {
+        const date = new Date(dateStr);
+        date.setDate(date.getDate() + days);
+        return date.toISOString().split('T')[0];
+    }
+
+    // Handle clicking on request events
+    handleRequestEventClick(calEvent) {
+        const request = calEvent.requestData;
+        const message = `
+            Type: ${request.Type__c || 'N/A'}
+            Dates: ${request.Start_Date__c} to ${request.End_Date__c}
+            Status: ${request.Status__c}
+            ${request.Reason__c ? 'Reason: ' + request.Reason__c : ''}
+        `;
+        
+        this.showToast('Leave Request Details', message, 'info');
+    }
+
+    // Load initial calendar events
+    loadCalendarEvents() {
+        const calendarElement = this.template.querySelector('div.fullcalendarjs');
+        if (calendarElement && $(calendarElement).fullCalendar) {
+            const events = this.getCalendarEvents();
+            $(calendarElement).fullCalendar('addEventSource', events);
+        }
+    }
+
+    // Refresh calendar events when requests change
+    refreshCalendarEvents() {
+        const calendarElement = this.template.querySelector('div.fullcalendarjs');
+        if (calendarElement && $(calendarElement).fullCalendar) {
+            // Remove all existing events
+            $(calendarElement).fullCalendar('removeEvents');
+            // Add updated events
+            const events = this.getCalendarEvents();
+            if (events && events.length > 0) {
+                $(calendarElement).fullCalendar('addEventSource', events);
+            }
+            // Ensure calendar remains selectable
+            $(calendarElement).fullCalendar('option', 'selectable', true);
+        }
+    }
+
+    // Centralized method to refresh all data
+    async refreshData() {
+        await refreshApex(this.req);
+        this.refreshCalendarEvents();
     }
 
     // ========== EVENT HANDLERS ==========
@@ -236,16 +361,9 @@ export default class Calender extends LightningElement {
     }
 
     // ========== FORM SUBMISSION ==========
-    handleSubmit() {
+    async handleSubmit() {
         // Validate dates
-        if (new Date(this.startDate) > new Date(this.endDate)) {
-            this.showToast('Error', 'Start date cannot be after end date', 'error');
-            return;
-        }
-        if (new Date(this.startDate) < new Date()) {
-            this.showToast('Error', 'Start date cannot be in the past', 'error');
-            return;
-        }
+        if (!this.validateDates()) return;
 
         this.isLoading = true;
 
@@ -264,18 +382,54 @@ export default class Calender extends LightningElement {
 
         // Submit request
         const operation = this.isEditMode ? updateRequest : createRequest;
-        operation({ request: leaveRequest })
-            .then(() => {
-                this.showToast('Success', 'Request submitted', 'success');
-                this.resetForm();
-                return refreshApex(this.req);
-            })
-            .catch(error => {
-                this.showToast('Error', error.body?.message || 'Submission failed', 'error');
-            })
-            .finally(() => {
-                this.isLoading = false;
-            });
+        try {
+            await operation({ request: leaveRequest });
+            this.showToast('Success', this.isEditMode ? 'Request updated' : 'Request submitted', 'success');
+            this.resetForm();
+            return refreshApex(this.req);
+        } catch (error) {
+            this.showToast('Error', error.body?.message || 'Operation failed', 'error');
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
+    // Validate form dates
+    validateDates() {
+        const startDate = new Date(this.startDate);
+        const endDate = new Date(this.endDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset time for comparison
+
+        // Basic date validations
+        if (startDate > endDate) {
+            this.showToast('Error', 'Start date cannot be after end date', 'error');
+            return false;
+        }
+
+        if (startDate < today) {
+            this.showToast('Error', 'Start date cannot be in the past', 'error');
+            return false;
+        }
+
+        // Check for overlapping requests
+        const hasOverlap = this.requests.some(req => {
+            if (this.isEditMode && req.Id === this.editingRequestId) return false;
+            
+            const reqStart = new Date(req.Start_Date__c);
+            const reqEnd = new Date(req.End_Date__c);
+            
+            return (startDate >= reqStart && startDate <= reqEnd) ||
+                   (endDate >= reqStart && endDate <= reqEnd) ||
+                   (startDate <= reqStart && endDate >= reqEnd);
+        });
+
+        if (hasOverlap) {
+            this.showToast('Error', 'Leave dates overlap with an existing request', 'error');
+            return false;
+        }
+
+        return true;
     }
 
     // ========== REQUEST MANAGEMENT ==========
@@ -303,6 +457,15 @@ export default class Calender extends LightningElement {
             .then(() => {
                 this.showToast('Success', 'Request cancelled', 'success');
                 return refreshApex(this.req);
+            })
+            .then(() => {
+                // Force update of tracked property
+                if (this.req && this.req.data) {
+                    this.requestsData = this.req.data.map(request => ({
+                        ...request,
+                        isPending: request.Status__c === 'Pending'
+                    }));
+                }
             })
             .catch(error => {
                 this.showToast('Error', error.body?.message || 'Cancel failed', 'error');

@@ -1,0 +1,105 @@
+/* Weekend styling */
+.fc-sat, .fc-sun {
+    background-color: #f3f3f3 !important;
+    color: #666 !important;
+}
+
+/* Disabled dates styling (holidays) */
+.fc-day.disabled-date {
+    background-color: #f3f3f3 !important;
+    color: #666 !important;
+    cursor: not-allowed !important;
+}
+
+/* Ensure weekends and disabled dates stay gray even when in selected range */
+.fc-sat.fc-highlight, .fc-sun.fc-highlight,
+.fc-day.disabled-date.fc-highlight {
+    background-color: #f3f3f3 !important;
+    color: #666 !important;
+}
+
+/* Weekend and disabled date cells in different calendar views */
+.fc-day.fc-sat, .fc-day.fc-sun,
+.fc-day.disabled-date {
+    background-color: #f3f3f3 !important;
+    color: #666 !important;
+}
+
+/* Weekend and disabled date cells when highlighted/selected */
+.fc-day.fc-sat.fc-highlight, .fc-day.fc-sun.fc-highlight,
+.fc-day.disabled-date.fc-highlight {
+    background-color: #f3f3f3 !important;
+    color: #666 !important;
+}
+
+/* Weekend and disabled date day numbers */
+.fc-sat .fc-day-number, .fc-sun .fc-day-number,
+.fc-day.disabled-date .fc-day-number {
+    color: #666 !important;
+}
+
+/* Prevent weekends and disabled dates from showing selection styling */
+.fc-sat.fc-state-highlight, .fc-sun.fc-state-highlight,
+.fc-day.disabled-date.fc-state-highlight {
+    background-color: #f3f3f3 !important;
+    color: #666 !important;
+}
+
+/* Additional styling for different states */
+.fc-day.fc-sat.fc-state-active, 
+.fc-day.fc-sun.fc-state-active,
+.fc-day.fc-sat.fc-state-hover,
+.fc-day.fc-sun.fc-state-hover,
+.fc-day.disabled-date.fc-state-active,
+.fc-day.disabled-date.fc-state-hover {
+    background-color: #f3f3f3 !important;
+    color: #666 !important;
+}
+
+/* Leave request event styling based on status */
+.fc-event.status-pending {
+    border-style: dashed !important;
+    border-width: 2px !important;
+}
+
+.fc-event.status-rejected {
+    opacity: 0.7 !important;
+    text-decoration: line-through !important;
+}
+
+.fc-event.status-approved {
+    border-style: solid !important;
+    border-width: 2px !important;
+    font-weight: bold !important;
+}
+
+/* Event title styling */
+.fc-event-title {
+    font-size: 12px !important;
+    padding: 2px !important;
+}
+
+/* Legend styling (you can add this to your HTML if you want a legend) */
+.leave-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    border: 1px solid #ccc;
+}

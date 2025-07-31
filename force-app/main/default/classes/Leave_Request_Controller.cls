@@ -5,17 +5,7 @@ public with sharing class Leave_Request_Controller {
     
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getRequests() {
-        return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c FROM Leave_Request__c ORDER BY CreatedDate DESC]; 
-    }
-    
-    @AuraEnabled(cacheable=true)
-    public static List<Leave_Request__c> getMyRequests() {
-        return [
-            SELECT Id, Type__c, Start_Date__c, End_Date__c, Status__c
-            FROM Leave_Request__c
-            WHERE CreatedById = :UserInfo.getUserId()
-            ORDER BY CreatedDate DESC
-        ];
+        return [SELECT Id, Name, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c FROM Leave_Request__c ORDER BY CreatedDate DESC]; 
     }
 
     @AuraEnabled(cacheable=true)
@@ -31,6 +21,12 @@ public with sharing class Leave_Request_Controller {
         
         return request;
     }
+@AuraEnabled(cacheable=true)
+public static List<Leave_Request__c> getMyRequests() {
+    return [SELECT Id, Start_Date__c, End_Date__c, Reason__c, Type__c, Status__c 
+            FROM Leave_Request__c 
+            WHERE CreatedById = :UserInfo.getUserId()];
+}
 
     @AuraEnabled
     public static Leave_Request__c createRequest(Leave_Request__c request) {
