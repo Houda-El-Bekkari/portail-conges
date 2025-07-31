@@ -62,4 +62,36 @@ public static List<Leave_Request__c> getMyRequests() {
         request.Status__c = 'Cancelled';
         update request;
     }
+    @AuraEnabled
+public static void approveRequest(Id requestId) {
+    Leave_Request__c req = [
+        SELECT Id, Start_Date__c, End_Date__c, Status__c
+        FROM Leave_Request__c
+        WHERE Id = :requestId
+        LIMIT 1
+    ];
+
+    if (req.Status__c != 'Pending') {
+        throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
+    }
+
+    // Calcul du nombre de jours de congé
+    Integer nbJours = req.End_Date__c.daysBetween(req.Start_Date__c) + 1;
+
+    // Récupération du solde de l'utilisateur
+    User u = [SELECT Id, Solde__c FROM User WHERE Id = :UserInfo.getUserId() LIMIT 1];
+
+    if (u.Solde__c < nbJours) {
+        throw new AuraHandledException('Votre solde de congés est insuffisant.');
+    }
+
+    // Mise à jour du solde
+    u.Solde__c -= nbJours;
+    update u;
+
+    // Approuver la demande
+    req.Status__c = 'Approved';
+    update req;
+}
+
 }

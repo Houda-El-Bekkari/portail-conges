@@ -49,11 +49,20 @@
                     <div class="slds-col slds-no-flex" if:true={request.isPending}>
                         <lightning-button label="Edit" data-id={request.Id} onclick={handleEdit} variant="neutral" size="small" class="slds-m-right_x-small"></lightning-button>
                         <lightning-button label="Cancel" data-id={request.Id} onclick={handleCancel} variant="destructive" size="small"></lightning-button>
+                        <lightning-button 
+    label="Approuver" 
+    data-id={request.Id} 
+    onclick={handleApprove} 
+    variant="success" 
+    size="small" 
+    class="slds-m-left_x-small">
+</lightning-button>
                     </div>
                 </div>
             </template>
         </div>
     </lightning-card>
+    
     <c-historique-demandes>
        
     <lightning-card title="Historique des demandes">
