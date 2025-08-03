@@ -1,0 +1,164 @@
+<template>
+    <lightning-card title="Manager - Leave Requests">
+        <div class="slds-m-around_medium">
+            <!-- Calendar Section -->
+            <div class="slds-m-bottom_medium">
+                <label class="slds-form-element__label slds-m-bottom_small">Click on leave requests in the calendar to approve/reject</label>
+                <div style="background:#ffffff;" class="slds-box">
+                    <div id="calendar" class="fullcalendarjs"></div>
+                </div>
+            </div>
+        </div>
+    </lightning-card>
+
+    <!-- Selected Request for Approval Modal -->
+    <template if:true={selectedRequestForApproval}>
+        <section role="dialog" tabindex="-1" aria-labelledby="modal-heading-01" aria-modal="true" aria-describedby="modal-content-id-1" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse" title="Close" onclick={closeApprovalModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="close" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h2 id="modal-heading-01" class="slds-modal__title slds-hyphenate">Leave Request Action</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1">
+                    <div class="slds-grid slds-wrap">
+                        <div class="slds-col slds-size_1-of-1">
+                            <h3 class="slds-text-heading_small slds-m-bottom_small">Request Details</h3>
+                            <p><strong>Employee:</strong> {selectedRequestForApproval.employeeName}</p>
+                            <p><strong>Type:</strong> {selectedRequestForApproval.Type__c}</p>
+                            <p><strong>Start Date:</strong> {selectedRequestForApproval.Start_Date__c}</p>
+                            <p><strong>End Date:</strong> {selectedRequestForApproval.End_Date__c}</p>
+                            <p><strong>Status:</strong> {selectedRequestForApproval.Status__c}</p>
+                            <p if:true={selectedRequestForApproval.Reason__c}><strong>Reason:</strong> {selectedRequestForApproval.Reason__c}</p>
+                        </div>
+                    </div>
+                    
+                    <template if:true={selectedRequestForApproval.isPending}>
+                        <div class="slds-m-top_medium">
+                            <h4 class="slds-text-heading_small slds-m-bottom_small">Manager Action</h4>
+                            <lightning-textarea 
+                                label="Comments (Optional)" 
+                                value={approvalComments} 
+                                onchange={handleCommentsChange}
+                                placeholder="Add any comments for this decision...">
+                            </lightning-textarea>
+                        </div>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <template if:true={selectedRequestForApproval.isPending}>
+                        <lightning-button 
+                            label="Approve" 
+                            onclick={confirmApproval} 
+                            variant="success" 
+                            class="slds-m-right_small">
+                        </lightning-button>
+                        <lightning-button 
+                            label="Reject" 
+                            onclick={confirmRejection} 
+                            variant="destructive" 
+                            class="slds-m-right_small">
+                        </lightning-button>
+                    </template>
+                    <lightning-button 
+                        label="Close" 
+                        onclick={closeApprovalModal} 
+                        variant="neutral">
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <!-- Organized Requests Lists -->
+    <div class="slds-grid slds-wrap slds-m-top_medium">
+        <!-- Pending Requests -->
+        <div class="slds-col slds-size_1-of-3 slds-p-right_small">
+            <lightning-card title="Pending Requests" icon-name="utility:clock">
+                <div class="slds-m-around_medium">
+                    <template if:true={pendingRequests.length}>
+                        <template for:each={pendingRequests} for:item="request">
+                            <div key={request.Id} class="slds-box slds-m-bottom_small request-card pending-request" onclick={handleRequestClick} data-id={request.Id}>
+                                <div class="slds-grid slds-grid_align-spread">
+                                    <div class="slds-col">
+                                        <strong>{request.employeeName}</strong><br/>
+                                        <span class="slds-text-body_small">{request.Start_Date__c} - {request.End_Date__c}</span><br/>
+                                        <span class="slds-text-body_small">Type: {request.Type__c}</span>
+                                        <span if:true={request.Reason__c} class="slds-text-body_small"><br/>Reason: {request.Reason__c}</span>
+                                    </div>
+                                    <div class="slds-col slds-no-flex">
+                                        <lightning-button-icon 
+                                            icon-name="utility:check" 
+                                            variant="success" 
+                                            size="small" 
+                                            alternative-text="Approve"
+                                            title="Quick Approve"
+                                            data-id={request.Id} 
+                                            onclick={handleQuickApprove}>
+                                        </lightning-button-icon>
+                                        <lightning-button-icon 
+                                            icon-name="utility:close" 
+                                            variant="destructive" 
+                                            size="small" 
+                                            alternative-text="Reject"
+                                            title="Quick Reject"
+                                            data-id={request.Id} 
+                                            onclick={handleQuickReject}
+                                            class="slds-m-left_xx-small">
+                                        </lightning-button-icon>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+                    <template if:false={pendingRequests.length}>
+                        <p class="slds-text-align_center slds-text-color_weak">No pending requests</p>
+                    </template>
+                </div>
+            </lightning-card>
+        </div>
+
+        <!-- Approved Requests -->
+        <div class="slds-col slds-size_1-of-3 slds-p-horizontal_small">
+            <lightning-card title="Approved Requests" icon-name="utility:success">
+                <div class="slds-m-around_medium">
+                    <template if:true={approvedRequests.length}>
+                        <template for:each={approvedRequests} for:item="request">
+                            <div key={request.Id} class="slds-box slds-m-bottom_small request-card approved-request" onclick={handleRequestClick} data-id={request.Id}>
+                                <strong>{request.employeeName}</strong><br/>
+                                <span class="slds-text-body_small">{request.Start_Date__c} - {request.End_Date__c}</span><br/>
+                                <span class="slds-text-body_small">Type: {request.Type__c}</span>
+                            </div>
+                        </template>
+                    </template>
+                    <template if:false={approvedRequests.length}>
+                        <p class="slds-text-align_center slds-text-color_weak">No approved requests</p>
+                    </template>
+                </div>
+            </lightning-card>
+        </div>
+
+        <!-- Rejected Requests -->
+        <div class="slds-col slds-size_1-of-3 slds-p-left_small">
+            <lightning-card title="Rejected Requests" icon-name="utility:error">
+                <div class="slds-m-around_medium">
+                    <template if:true={rejectedRequests.length}>
+                        <template for:each={rejectedRequests} for:item="request">
+                            <div key={request.Id} class="slds-box slds-m-bottom_small request-card rejected-request" onclick={handleRequestClick} data-id={request.Id}>
+                                <strong>{request.employeeName}</strong><br/>
+                                <span class="slds-text-body_small">{request.Start_Date__c} - {request.End_Date__c}</span><br/>
+                                <span class="slds-text-body_small">Type: {request.Type__c}</span>
+                            </div>
+                        </template>
+                    </template>
+                    <template if:false={rejectedRequests.length}>
+                        <p class="slds-text-align_center slds-text-color_weak">No rejected requests</p>
+                    </template>
+                </div>
+            </lightning-card>
+        </div>
+    </div>
+</template>

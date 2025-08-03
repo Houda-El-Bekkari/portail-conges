@@ -5,7 +5,7 @@ public with sharing class Leave_Request_Controller {
     
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getRequests() {
-        return [SELECT Id, Name, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c FROM Leave_Request__c ORDER BY CreatedDate DESC]; 
+        return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, CreatedBy.Name FROM Leave_Request__c ORDER BY CreatedDate DESC]; 
     }
 
     @AuraEnabled(cacheable=true)
@@ -62,36 +62,70 @@ public static List<Leave_Request__c> getMyRequests() {
         request.Status__c = 'Cancelled';
         update request;
     }
+   @AuraEnabled
+    public static void approveRequest(Id requestId) {
+        List<Leave_Request__c> reqList = [
+            SELECT Id, Start_Date__c, End_Date__c, Status__c, CreatedById
+            FROM Leave_Request__c
+            WHERE Id = :requestId
+            LIMIT 1
+        ];
+        if (reqList.isEmpty()) {
+            throw new AuraHandledException('La demande de congé n\'existe pas.');
+        }
+        Leave_Request__c req = reqList[0];
+
+        if (req.Status__c != 'Pending') {
+            throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
+        }
+
+        Integer nbJours = req.End_Date__c.daysBetween(req.Start_Date__c) + 1;
+
+        // Utiliser le propriétaire de la demande
+        List<User> demandeurList = [SELECT Id, Solde__c FROM User WHERE Id = :req.CreatedById LIMIT 1];
+        if (demandeurList.isEmpty()) {
+            throw new AuraHandledException('Le demandeur n\'existe pas.');
+        }
+        User demandeur = demandeurList[0];
+
+        if (demandeur.Solde__c == null ) {
+            throw new AuraHandledException('Le solde du demandeur est insuffisant.');
+        }
+
+        demandeur.Solde__c -= nbJours;
+        update demandeur;
+
+        req.Status__c = 'Approved';
+        update req;
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static List<Leave_Request__c> getAllRequests() {
+        return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, CreatedBy.Name 
+                FROM Leave_Request__c 
+                ORDER BY CreatedDate DESC];
+    }
+
     @AuraEnabled
-public static void approveRequest(Id requestId) {
-    Leave_Request__c req = [
-        SELECT Id, Start_Date__c, End_Date__c, Status__c
-        FROM Leave_Request__c
-        WHERE Id = :requestId
-        LIMIT 1
-    ];
+    public static void rejectRequest(Id requestId) {
+        Leave_Request__c req = [
+            SELECT Id, Status__c 
+            FROM Leave_Request__c 
+            WHERE Id = :requestId 
+            LIMIT 1
+        ];
 
-    if (req.Status__c != 'Pending') {
-        throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
+        if (req.Status__c != 'Pending') {
+            throw new AuraHandledException('Seules les demandes en attente peuvent être rejetées.');
+        }
+
+        req.Status__c = 'Rejected';
+        update req;
     }
 
-    // Calcul du nombre de jours de congé
-    Integer nbJours = req.End_Date__c.daysBetween(req.Start_Date__c) + 1;
-
-    // Récupération du solde de l'utilisateur
-    User u = [SELECT Id, Solde__c FROM User WHERE Id = :UserInfo.getUserId() LIMIT 1];
-
-    if (u.Solde__c < nbJours) {
-        throw new AuraHandledException('Votre solde de congés est insuffisant.');
+    @AuraEnabled(cacheable=true)
+    public static List<User> getMySolde() {
+        return [SELECT Id, Solde__c FROM User WHERE Id = :UserInfo.getUserId()];
     }
-
-    // Mise à jour du solde
-    u.Solde__c -= nbJours;
-    update u;
-
-    // Approuver la demande
-    req.Status__c = 'Approved';
-    update req;
-}
 
 }

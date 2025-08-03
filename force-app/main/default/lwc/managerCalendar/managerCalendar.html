@@ -1,0 +1,27 @@
+<template>
+    <lightning-card title="Calendrier des Congés - Manager">
+        <div class="slds-m-around_medium">
+            <div id="calendar" class="fullcalendarjs"></div>
+        </div>
+    </lightning-card>
+
+    <lightning-card title="Toutes les Demandes de Congé" class="slds-m-top_medium">
+        <div class="slds-m-around_medium">
+            <template for:each={requests} for:item="req">
+                <div key={req.Id} class="slds-box slds-m-bottom_small slds-grid slds-grid_align-spread">
+                    <div>
+                        <strong>{req.Start_Date__c} à {req.End_Date__c}</strong><br/>
+                        Type: {req.Type__c}<br/>
+                        Demandeur: {req.CreatedBy.Name}<br/>
+                        Statut: {req.Status__c}<br/>
+                        <template if:true={req.Reason__c}>Motif: {req.Reason__c}</template>
+                    </div>
+                    <div if:true={req.isPending}>
+                        <lightning-button label="Approuver" data-id={req.Id} onclick={handleApprove} variant="success" size="small"></lightning-button>
+                        <lightning-button label="Rejeter" data-id={req.Id} onclick={handleReject} variant="destructive" size="small" class="slds-m-left_small"></lightning-button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

@@ -13,6 +13,8 @@ import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteReque
 import getMyRequests from '@salesforce/apex/Leave_Request_Controller.getMyRequests';
 import approveRequest from '@salesforce/apex/Leave_Request_Controller.approveRequest';
 
+import getMySolde from '@salesforce/apex/Leave_Request_Controller.getMySolde';
+
 import flatpickrBase from '@salesforce/resourceUrl/flatpickr';
 const flatpickrJs = flatpickrBase + '/flatpickr.min.js';
 const flatpickrCss = flatpickrBase + '/flatpickr.min.css';
@@ -26,38 +28,51 @@ export default class Calender extends LightningElement {
     @track disabledDates = [];
     @track holidayLabels = {};
 
-
-    // Method to fetch holidays from the API
-    // Method to fetch holidays from the API
-async fetchHolidays() {
-    try {
-        const data = await getHolidays_MA(); // [{ date: '2025-01-01', name: 'Nouvel An' }, ...]
-        console.log('Fetched holidays:', data);
-
-        // Stocker les noms avec les dates
-        this.disabledDates = data.map(item => item.date);
-        this.holidayLabels = data.reduce((acc, item) => {
-            acc[item.date] = item.name;
-            return acc;
-        }, {});
-    } catch (error) {
-        console.error("Error fetching holidays:", error);
-        this.showToast("Error", "Failed to load holidays", "error");
+    @track mySolde;
+    @wire(getMySolde)
+    wiredMySolde({ data, error }) {
+        if (data) {
+            this.mySolde = data;
+        } else if (error) {
+            this.mySolde = null;
+            console.error('Error fetching solde:', error);
+        }
     }
-}
+    get soldeDisplay() {
+        return this.mySolde ? `Solde: ${this.mySolde}` : 'Solde: N/A';
+    }
 
-handleApprove(event) {
-    const requestId = event.target.dataset.id;
 
-    approveRequest({ requestId })
-        .then(() => {
-            this.showToast('Succès', 'Demande approuvée et solde mis à jour.', 'success');
-            return refreshApex(this.req);
-        })
-        .catch(error => {
-            this.showToast('Erreur', error.body?.message || 'Erreur d’approbation', 'error');
-        });
-}
+    // Method to fetch holidays from the API
+    async fetchHolidays() {
+        try {
+            const data = await getHolidays_MA(); // [{ date: '2025-01-01', name: 'Nouvel An' }, ...]
+            console.log('Fetched holidays:', data);
+
+            // Stocker les noms avec les dates
+            this.disabledDates = data.map(item => item.date);
+            this.holidayLabels = data.reduce((acc, item) => {
+                acc[item.date] = item.name;
+                return acc;
+            }, {});
+        } catch (error) {
+            console.error("Error fetching holidays:", error);
+            this.showToast("Error", "Failed to load holidays", "error");
+        }
+    }
+
+    handleApprove(event) {
+        const requestId = event.target.dataset.id;
+
+        approveRequest({ requestId })
+            .then(() => {
+                this.showToast('Succès', 'Demande approuvée et solde mis à jour.', 'success');
+                return refreshApex(this.req);
+            })
+            .catch(error => {
+                this.showToast('Erreur', error.body?.message || 'Erreur d’approbation', 'error');
+            });
+    }
 
     
     // Form data

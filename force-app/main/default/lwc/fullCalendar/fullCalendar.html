@@ -22,6 +22,16 @@
                         <lightning-button label={submitButtonLabel} onclick={handleSubmit} variant="brand" disabled={isLoading}></lightning-button>
                         <lightning-button if:true={isEditMode} label="Cancel" onclick={handleCancelEdit} variant="neutral" class="slds-m-left_small"></lightning-button>
                     </div>
+                    
+                    <!--solde-->
+                    <div>
+                        <template if:true={mySolde}>
+                            <p class="slds-text-body_regular slds-m-top_medium">Your remaining leave balance: {soldeDisplay}</p>
+                        </template>
+                        <template if:true={mySolde.error}>
+                            <p class="slds-text-color_error slds-m-top_medium">Error fetching leave balance: {mySolde.error}</p>
+                        </template>
+                    </div>
                 </div>
 
                 <!-- Calendar Section -->
@@ -50,13 +60,13 @@
                         <lightning-button label="Edit" data-id={request.Id} onclick={handleEdit} variant="neutral" size="small" class="slds-m-right_x-small"></lightning-button>
                         <lightning-button label="Cancel" data-id={request.Id} onclick={handleCancel} variant="destructive" size="small"></lightning-button>
                         <lightning-button 
-    label="Approuver" 
-    data-id={request.Id} 
-    onclick={handleApprove} 
-    variant="success" 
-    size="small" 
-    class="slds-m-left_x-small">
-</lightning-button>
+                            label="Approuver" 
+                            data-id={request.Id} 
+                            onclick={handleApprove} 
+                            variant="success" 
+                            size="small" 
+                            class="slds-m-left_x-small">
+                        </lightning-button>
                     </div>
                 </div>
             </template>
