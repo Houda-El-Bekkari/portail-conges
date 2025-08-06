@@ -1,5 +1,12 @@
 <template>
     <lightning-card title={formTitle}>
+        <!-- Simple Solde Display -->
+        <div class="slds-m-around_medium slds-border_bottom">
+            <p class="slds-text-body_regular slds-p-bottom_small">
+                <strong>Solde:</strong> {userBalance} days
+            </p>
+        </div>
+
         <div class="slds-m-around_medium">
             <div class="slds-grid slds-wrap">
                 <!-- Date Selection Section -->
@@ -21,16 +28,6 @@
                     <div class="slds-m-top_medium">
                         <lightning-button label={submitButtonLabel} onclick={handleSubmit} variant="brand" disabled={isLoading}></lightning-button>
                         <lightning-button if:true={isEditMode} label="Cancel" onclick={handleCancelEdit} variant="neutral" class="slds-m-left_small"></lightning-button>
-                    </div>
-                    
-                    <!--solde-->
-                    <div>
-                        <template if:true={mySolde}>
-                            <p class="slds-text-body_regular slds-m-top_medium">Your remaining leave balance: {soldeDisplay}</p>
-                        </template>
-                        <template if:true={mySolde.error}>
-                            <p class="slds-text-color_error slds-m-top_medium">Error fetching leave balance: {mySolde.error}</p>
-                        </template>
                     </div>
                 </div>
 

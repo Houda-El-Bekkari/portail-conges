@@ -5,7 +5,10 @@ public with sharing class Leave_Request_Controller {
     
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getRequests() {
-        return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, CreatedBy.Name FROM Leave_Request__c ORDER BY CreatedDate DESC]; 
+        return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, 
+                CreatedBy.Name, CreatedById
+                FROM Leave_Request__c 
+                ORDER BY CreatedDate DESC];
     }
 
     @AuraEnabled(cacheable=true)
@@ -23,7 +26,7 @@ public with sharing class Leave_Request_Controller {
     }
 @AuraEnabled(cacheable=true)
 public static List<Leave_Request__c> getMyRequests() {
-    return [SELECT Id, Start_Date__c, End_Date__c, Reason__c, Type__c, Status__c 
+    return [SELECT Id, Start_Date__c, End_Date__c, Reason__c, Type__c, Status__c,CreatedBy.Name
             FROM Leave_Request__c 
             WHERE CreatedById = :UserInfo.getUserId()];
 }
@@ -63,69 +66,67 @@ public static List<Leave_Request__c> getMyRequests() {
         update request;
     }
    @AuraEnabled
-    public static void approveRequest(Id requestId) {
-        List<Leave_Request__c> reqList = [
-            SELECT Id, Start_Date__c, End_Date__c, Status__c, CreatedById
-            FROM Leave_Request__c
-            WHERE Id = :requestId
-            LIMIT 1
-        ];
-        if (reqList.isEmpty()) {
-            throw new AuraHandledException('La demande de congé n\'existe pas.');
-        }
-        Leave_Request__c req = reqList[0];
+public static void approveRequest(Id requestId) {
+    Leave_Request__c req = [
+        SELECT Id, Start_Date__c, End_Date__c, Status__c, CreatedById
+        FROM Leave_Request__c
+        WHERE Id = :requestId
+        LIMIT 1
+    ];
 
-        if (req.Status__c != 'Pending') {
-            throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
-        }
-
-        Integer nbJours = req.End_Date__c.daysBetween(req.Start_Date__c) + 1;
-
-        // Utiliser le propriétaire de la demande
-        List<User> demandeurList = [SELECT Id, Solde__c FROM User WHERE Id = :req.CreatedById LIMIT 1];
-        if (demandeurList.isEmpty()) {
-            throw new AuraHandledException('Le demandeur n\'existe pas.');
-        }
-        User demandeur = demandeurList[0];
-
-        if (demandeur.Solde__c == null ) {
-            throw new AuraHandledException('Le solde du demandeur est insuffisant.');
-        }
-
-        demandeur.Solde__c -= nbJours;
-        update demandeur;
-
-        req.Status__c = 'Approved';
-        update req;
+    if (req.Status__c != 'Pending') {
+        throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
     }
 
-    @AuraEnabled(cacheable=true)
-    public static List<Leave_Request__c> getAllRequests() {
-        return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, CreatedBy.Name 
-                FROM Leave_Request__c 
-                ORDER BY CreatedDate DESC];
+    Integer nbJours = req.Start_Date__c.daysBetween(req.End_Date__c) + 1;
+
+    // Utiliser l'objet UserData__c qui référence le demandeur
+    UserData__c demandeurData = [SELECT Id, Solde__c FROM UserData__c WHERE User__c = :req.CreatedById LIMIT 1];
+
+    if (demandeurData.Solde__c < nbJours) {
+        throw new AuraHandledException('Le solde du demandeur est insuffisant.');
     }
 
-    @AuraEnabled
-    public static void rejectRequest(Id requestId) {
-        Leave_Request__c req = [
-            SELECT Id, Status__c 
+    demandeurData.Solde__c -= nbJours;
+    update demandeurData;
+
+    req.Status__c = 'Approved';
+    update req;
+}
+
+@AuraEnabled(cacheable=true)
+public static List<Leave_Request__c> getAllRequests() {
+    return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, CreatedBy.Name 
             FROM Leave_Request__c 
-            WHERE Id = :requestId 
-            LIMIT 1
-        ];
+            ORDER BY CreatedDate DESC];
+}
 
-        if (req.Status__c != 'Pending') {
-            throw new AuraHandledException('Seules les demandes en attente peuvent être rejetées.');
-        }
+@AuraEnabled
+public static void rejectRequest(Id requestId) {
+    Leave_Request__c req = [
+        SELECT Id, Status__c 
+        FROM Leave_Request__c 
+        WHERE Id = :requestId 
+        LIMIT 1
+    ];
 
-        req.Status__c = 'Rejected';
-        update req;
+    if (req.Status__c != 'Pending') {
+        throw new AuraHandledException('Seules les demandes en attente peuvent être rejetées.');
     }
 
+    req.Status__c = 'Rejected';
+    update req;
+}
+    // Added: Method to get current user's balance
     @AuraEnabled(cacheable=true)
-    public static List<User> getMySolde() {
-        return [SELECT Id, Solde__c FROM User WHERE Id = :UserInfo.getUserId()];
+    public static Decimal getSolde() {
+        try {
+            // Make sure this matches where you're actually storing the balance
+            UserData__c currentUser = [SELECT Id, Solde__c FROM UserData__c WHERE User__c = :UserInfo.getUserId() LIMIT 1];
+            return currentUser.Solde__c != null ? currentUser.Solde__c : 0;
+        } catch (Exception e) {
+            System.debug('Error getting solde: ' + e.getMessage());
+            return 0;
+        }
     }
-
 }

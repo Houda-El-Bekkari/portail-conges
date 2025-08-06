@@ -20,18 +20,14 @@ export default class ManagerCalendar extends LightningElement {
     }
 
     handleApprove(event) {
-        const id = event?.target?.dataset?.id;
-        if (!id) {
-            this.showToast('Erreur', 'ID de demande non trouvé.', 'error');
-            return;
-        }
+        const id = event.target.dataset.id;
         approveRequest({ requestId: id })
             .then(() => {
                 this.showToast('Succès', 'Demande approuvée.', 'success');
                 return refreshApex(this.wiredRequests);
             })
             .catch(error => {
-                this.showToast('Erreur', error?.body?.message || 'Erreur inconnue', 'error');
+                this.showToast('Erreur', error.body.message, 'error');
             });
     }
 
