@@ -27,12 +27,13 @@ public with sharing class HolidayService {
         
         try {
             HttpRequest req = new HttpRequest();
+            // Named Credentials !!!
             req.setEndpoint('https://date.nager.at/api/v3/PublicHolidays/2025/MA');
             req.setMethod('GET');
             req.setTimeout(20000);
             
             HttpResponse res = new Http().send(req);
-            
+            // use wrapper !!!
             if (res.getStatusCode() == 200) {
                 List<Object> apiHolidays = (List<Object>) JSON.deserializeUntyped(res.getBody());
                 

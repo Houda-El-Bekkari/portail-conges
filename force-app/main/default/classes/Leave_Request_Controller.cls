@@ -2,7 +2,7 @@ public with sharing class Leave_Request_Controller {
     
     public Leave_Request_Controller() {
     }
-    
+
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getRequests() {
         return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, 
@@ -12,24 +12,11 @@ public with sharing class Leave_Request_Controller {
     }
 
     @AuraEnabled(cacheable=true)
-    public static Leave_Request__c getRequest(Id requestId) {
-        if (requestId == null) {
-            throw new AuraHandledException('Request ID cannot be null.');
-        }
-        
-        Leave_Request__c request = [SELECT Id, Name, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c FROM Leave_Request__c WHERE Id = :requestId LIMIT 1];
-        if (request == null) {
-            throw new AuraHandledException('Leave request not found.');
-        }
-        
-        return request;
+    public static List<Leave_Request__c> getMyRequests() {
+        return [SELECT Id, Start_Date__c, End_Date__c, Reason__c, Type__c, Status__c, CreatedBy.Name, Manager_Comments__c
+                FROM Leave_Request__c 
+                WHERE CreatedById = :UserInfo.getUserId()];
     }
-@AuraEnabled(cacheable=true)
-public static List<Leave_Request__c> getMyRequests() {
-    return [SELECT Id, Start_Date__c, End_Date__c, Reason__c, Type__c, Status__c,CreatedBy.Name
-            FROM Leave_Request__c 
-            WHERE CreatedById = :UserInfo.getUserId()];
-}
 
     @AuraEnabled
     public static Leave_Request__c createRequest(Leave_Request__c request) {
@@ -65,58 +52,61 @@ public static List<Leave_Request__c> getMyRequests() {
         request.Status__c = 'Cancelled';
         update request;
     }
-   @AuraEnabled
-public static void approveRequest(Id requestId) {
-    Leave_Request__c req = [
-        SELECT Id, Start_Date__c, End_Date__c, Status__c, CreatedById
-        FROM Leave_Request__c
-        WHERE Id = :requestId
-        LIMIT 1
-    ];
 
-    if (req.Status__c != 'Pending') {
-        throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
+    @AuraEnabled
+    public static void approveRequest(Id requestId, String comments) {
+        Leave_Request__c req = [
+            SELECT Id, Start_Date__c, End_Date__c, Status__c, CreatedById
+            FROM Leave_Request__c
+            WHERE Id = :requestId
+            LIMIT 1
+        ];
+
+        if (req.Status__c != 'Pending') {
+            throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
+        }
+
+        Decimal nbJours = getDeltaSolde(req.Start_Date__c, req.End_Date__c);
+
+        // Utiliser l'objet UserData__c qui référence le demandeur
+        UserData__c demandeurData = [SELECT Id, Solde__c FROM UserData__c WHERE User__c = :req.CreatedById LIMIT 1];
+
+        if (demandeurData.Solde__c < nbJours) {
+            throw new AuraHandledException('Le solde du demandeur est insuffisant.');
+        }
+
+        demandeurData.Solde__c -= nbJours;
+        update demandeurData;
+
+        req.Status__c = 'ManagerApproved';
+        req.Manager_Comments__c = comments;
+        update req;
     }
 
-    Integer nbJours = req.Start_Date__c.daysBetween(req.End_Date__c) + 1;
-
-    // Utiliser l'objet UserData__c qui référence le demandeur
-    UserData__c demandeurData = [SELECT Id, Solde__c FROM UserData__c WHERE User__c = :req.CreatedById LIMIT 1];
-
-    if (demandeurData.Solde__c < nbJours) {
-        throw new AuraHandledException('Le solde du demandeur est insuffisant.');
+    @AuraEnabled(cacheable=true)
+    public static List<Leave_Request__c> getAllRequests() {
+        return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, CreatedBy.Name 
+                FROM Leave_Request__c 
+                ORDER BY CreatedDate DESC];
     }
 
-    demandeurData.Solde__c -= nbJours;
-    update demandeurData;
-
-    req.Status__c = 'Approved';
-    update req;
-}
-
-@AuraEnabled(cacheable=true)
-public static List<Leave_Request__c> getAllRequests() {
-    return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, CreatedBy.Name 
+    @AuraEnabled
+    public static void rejectRequest(Id requestId, String comments) {
+        Leave_Request__c req = [
+            SELECT Id, Status__c 
             FROM Leave_Request__c 
-            ORDER BY CreatedDate DESC];
-}
+            WHERE Id = :requestId 
+            LIMIT 1
+        ];
 
-@AuraEnabled
-public static void rejectRequest(Id requestId) {
-    Leave_Request__c req = [
-        SELECT Id, Status__c 
-        FROM Leave_Request__c 
-        WHERE Id = :requestId 
-        LIMIT 1
-    ];
+        if (req.Status__c != 'Pending') {
+            throw new AuraHandledException('Seules les demandes en attente peuvent être rejetées.');
+        }
 
-    if (req.Status__c != 'Pending') {
-        throw new AuraHandledException('Seules les demandes en attente peuvent être rejetées.');
+        req.Status__c = 'Rejected';
+        req.Manager_Comments__c = comments;
+        update req;
     }
-
-    req.Status__c = 'Rejected';
-    update req;
-}
     // Added: Method to get current user's balance
     @AuraEnabled(cacheable=true)
     public static Decimal getSolde() {
@@ -128,5 +118,67 @@ public static void rejectRequest(Id requestId) {
             System.debug('Error getting solde: ' + e.getMessage());
             return 0;
         }
+    }
+
+    @AuraEnabled
+    public static Decimal getDeltaSolde(Date startDate, Date endDate) {
+        try {
+            List<Map<String, String>> holidays = HolidayService.getHolidays_MA();
+            Set<Date> holidayDates = new Set<Date>();
+            for (Map<String, String> holiday : holidays) {
+                holidayDates.add(Date.valueOf(holiday.get('date')));
+            }
+
+            Integer deltaSolde = 0;
+            Date currentDate = startDate;
+            while (currentDate <= endDate) {
+                Integer dayOfWeek = Integer.valueOf(((Datetime) currentDate).format('u')); // 6=Saturday, 7=Sunday
+                if (dayOfWeek != 6 && dayOfWeek != 7 && !holidayDates.contains(currentDate)) {
+                    deltaSolde++;
+                }
+                currentDate = currentDate.addDays(1);
+            }
+            return deltaSolde;
+        } catch (Exception e) {
+            throw new AuraHandledException(e.getMessage());
+            
+        }
+    }
+
+
+    @AuraEnabled
+    public static void approveRequestByRH(Id requestId, String comments) {
+        Leave_Request__c req = [
+            SELECT Id, Status__c, Manager_Comments__c
+            FROM Leave_Request__c
+            WHERE Id = :requestId
+            LIMIT 1
+        ];
+
+        if (req.Status__c != 'ManagerApproved') {
+            throw new AuraHandledException('Seules les demandes approuvées par le manager peuvent être approuvées par les RH.');
+        }
+
+        req.Status__c = 'Approved';
+        req.Manager_Comments__c = comments; // Assuming Manager_Comments__c can store RH comments as well, or create a new field
+        update req;
+    }
+
+    @AuraEnabled
+    public static void rejectRequestByRH(Id requestId, String comments) {
+        Leave_Request__c req = [
+            SELECT Id, Status__c, Manager_Comments__c
+            FROM Leave_Request__c
+            WHERE Id = :requestId
+            LIMIT 1
+        ];
+
+        if (req.Status__c != 'ManagerApproved') {
+            throw new AuraHandledException('Seules les demandes approuvées par le manager peuvent être rejetées par les RH.');
+        }
+
+        req.Status__c = 'Rejected';
+        req.Manager_Comments__c = comments; // Assuming Manager_Comments__c can store RH comments as well, or create a new field
+        update req;
     }
 }

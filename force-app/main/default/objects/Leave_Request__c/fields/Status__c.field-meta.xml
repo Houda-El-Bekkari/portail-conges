@@ -21,6 +21,11 @@
                 <label>Approved</label>
             </value>
             <value>
+                <fullName>ManagerApproved</fullName>
+                <default>false</default>
+                <label>Manager Approved</label>
+            </value>
+            <value>
                 <fullName>Rejected</fullName>
                 <default>false</default>
                 <label>Rejected</label>

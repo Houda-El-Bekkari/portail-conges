@@ -1,0 +1,2 @@
+Leave_Request__c req= [SELECT Id, Start_Date__c, End_Date__c, CreatedById FROM Leave_Request__c WHERE CreatedById = :UserInfo.getUserId() Limit 1];
+System.debug('Delta Solde: ' + Leave_Request_Controller.getDeltaSolde(req.Start_Date__c, req.End_Date__c));

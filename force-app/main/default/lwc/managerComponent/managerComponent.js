@@ -127,7 +127,7 @@ export default class ManagerComponent extends LightningElement {
             this.requestsData = result.data.map(request => ({
                 ...request,
                 isPending: request.Status__c === 'Pending',
-                isApproved: request.Status__c === 'Approved',
+                isApproved: request.Status__c === 'Approved' || request.Status__c === 'ManagerApproved',
                 isRejected: request.Status__c === 'Rejected',
                 employeeName: request.CreatedBy && request.CreatedBy.Name ? request.CreatedBy.Name : 'Unknown Employee'
             }));
@@ -150,7 +150,7 @@ export default class ManagerComponent extends LightningElement {
     }
 
     get approvedRequests() {
-        return this.requestsData.filter(req => req.Status__c === 'Approved');
+        return this.requestsData.filter(req => req.Status__c === 'Approved' || req.Status__c === 'ManagerApproved');
     }
 
     get rejectedRequests() {

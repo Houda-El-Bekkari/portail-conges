@@ -1,0 +1,1 @@
+delete [select Id from Leave_Request__c];

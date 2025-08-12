@@ -1,8 +1,6 @@
-// First, let's see what users exist
 List<User> activeUsers = [SELECT Id, Name FROM User WHERE IsActive = true];
 System.debug('Active Users: ' + activeUsers.size());
 
-// Create UserData__c records for all active users
 List<UserData__c> userDataToInsert = new List<UserData__c>();
 
 for(User u : activeUsers) {

@@ -332,6 +332,7 @@ handleApprove(event) {
             'Sick Leave': '#dc3545',
             'Training Leave': '#28a745',
             'Vacation': '#17a2b8',
+
         };
 
         return typeColors[type] || '#6c757d'; // Default gray
