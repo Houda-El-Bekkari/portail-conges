@@ -123,10 +123,15 @@ public with sharing class Leave_Request_Controller {
     @AuraEnabled
     public static Decimal getDeltaSolde(Date startDate, Date endDate) {
         try {
-            List<Map<String, String>> holidays = HolidayService.getHolidays_MA();
+            // Get Holiday__c records instead of Map<String, String>
+            List<Holiday__c> holidays = HolidayService.getHolidays_MA();
             Set<Date> holidayDates = new Set<Date>();
-            for (Map<String, String> holiday : holidays) {
-                holidayDates.add(Date.valueOf(holiday.get('date')));
+            
+            // Extract dates from Holiday__c records
+            for (Holiday__c holiday : holidays) {
+                if (holiday.Date__c != null) {
+                    holidayDates.add(holiday.Date__c);
+                }
             }
 
             Integer deltaSolde = 0;
@@ -141,7 +146,6 @@ public with sharing class Leave_Request_Controller {
             return deltaSolde;
         } catch (Exception e) {
             throw new AuraHandledException(e.getMessage());
-            
         }
     }
 
