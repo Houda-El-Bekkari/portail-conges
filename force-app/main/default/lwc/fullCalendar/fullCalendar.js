@@ -11,7 +11,6 @@ import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateReque
 import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
 import getMyRequests from '@salesforce/apex/Leave_Request_Controller.getMyRequests';
 
-import approveRequest from '@salesforce/apex/Leave_Request_Controller.approveRequest';
 import getSolde from '@salesforce/apex/Leave_Request_Controller.getSolde';
 import getDeltaSolde from '@salesforce/apex/Leave_Request_Controller.getDeltaSolde';
 
@@ -33,27 +32,12 @@ export default class Calender extends LightningElement {
 
     @track userBalance = 0;
 
-    get deltaSolde() {
+    @track deltaSolde = 0;
+    async updateDeltaSolde() {
         if (!this.startDate || !this.endDate) return 0;
-        
-        const start = new Date(this.startDate);
-        const end = new Date(this.endDate);
-        let workingDays = 0;
-        
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            const dayOfWeek = d.getDay(); // 0 = Sunday, 6 = Saturday
-            const dateStr = d.toISOString().split('T')[0];
-            
-            // Check if date is a holiday using holidays array directly
-            const isHoliday = this.holidays.some(holiday => holiday.date__c === dateStr);
-            
-            // Count only weekdays that are not holidays
-            if (dayOfWeek !== 0 && dayOfWeek !== 6 && !isHoliday) {
-                workingDays++;
-            }
-        }
-        
-        return workingDays;
+        this.deltaSolde = await getDeltaSolde({ startDate: this.startDate, endDate: this.endDate })
+            .then(result => result)
+            .catch(() => 0);
     }
 
     get isBalanceSufficient() {
@@ -75,8 +59,8 @@ export default class Calender extends LightningElement {
                 console.log(`Holiday ${index}:`, {
                     Id: holiday.Id,
                     Name: holiday.Name,
-                    date__c: holiday.date__c,
-                    dateType: typeof holiday.date__c
+                    Date__c: holiday.Date__c,
+                    dateType: typeof holiday.Date__c
                 });
             });
             
@@ -97,19 +81,6 @@ export default class Calender extends LightningElement {
             this.holidays = [];
             this.holidaysLoaded = true; // Still set to true to allow calendar initialization
         }
-    }
-
-    handleApprove(event) {
-        const requestId = event.target.dataset.id;
-
-    approveRequest({ requestId })
-        .then(() => {
-            this.showToast('Succès', 'Demande approuvée et solde mis à jour.', 'success');
-            return refreshApex(this.req);
-        })
-        .catch(error => {
-            this.showToast('Erreur', error.body?.message || 'Erreur d\'approbation', 'error');
-        });
     }
 
     
@@ -263,7 +234,7 @@ export default class Calender extends LightningElement {
         const disableWeekends = (date) => (date.getDay() === 0 || date.getDay() === 6);
         const disableHolidays = (date) => {
             const dateStr = date.toISOString().split('T')[0];
-            return this.holidays.some(holiday => holiday.date__c === dateStr);
+            return this.holidays.some(holiday => holiday.Date__c === dateStr);
         };
 
         const disableOptions = [disableWeekends, disableHolidays];
@@ -333,7 +304,7 @@ export default class Calender extends LightningElement {
                 const dateStr = selectInfo.start.format('YYYY-MM-DD');
                 
                 if (day === 0 || day === 6) return false;
-                if (self.holidays.some(holiday => holiday.date__c === dateStr)) {
+                if (self.holidays.some(holiday => holiday.Date__c === dateStr)) {
                     return false;
                 }
                 
@@ -343,7 +314,7 @@ export default class Calender extends LightningElement {
             dayRender: function(date, cell) {
                 const dateStr = date.format('YYYY-MM-DD');
                 const isWeekend = (date.day() === 0 || date.day() === 6);
-                const holidayRecord = self.holidays.find(holiday => holiday.date__c === dateStr);
+                const holidayRecord = self.holidays.find(holiday => holiday.Date__c === dateStr);
                 const isHoliday = !!holidayRecord;
 
                 if (isWeekend) {
@@ -421,7 +392,6 @@ export default class Calender extends LightningElement {
     console.log('Requests available:', this.requests ? this.requests.length : 0);
     console.log('Holidays available:', this.holidays ? this.holidays.length : 0);
 
-    // Add leave request events only
     if (this.requests && this.requests.length > 0) {
         const requestEvents = this.requests.map(request => {
             let color = this.getColorForType(request.Type__c);
@@ -432,7 +402,7 @@ export default class Calender extends LightningElement {
                 case 'Approved':
                     break;
                 case 'Rejected':
-                    borderColor = '#000000';
+                    borderColor = '#ff0000ff';
                     backgroundColor = color + '80';
                     break;
                 case 'Pending':
@@ -549,10 +519,14 @@ export default class Calender extends LightningElement {
 
     // ========== FORM SUBMISSION ==========
     async handleSubmit() {
+        // Validate required fields first
+        if (!this.validateRequiredFields()) return;
+        
         // Validate dates
         if (!this.validateDates()) return;
 
         // Check balance
+        await this.updateDeltaSolde();
         if (!this.isBalanceSufficient) {
             this.showToast('Error', `Insufficient leave balance. Required: ${this.deltaSolde} days, Available: ${this.userBalance} days`, 'error');
             return;
@@ -566,7 +540,8 @@ export default class Calender extends LightningElement {
             Start_Date__c: this.startDate,
             End_Date__c: this.endDate,
             Reason__c: this.reason,
-            Type__c: this.type
+            Type__c: this.type,
+            Business_Days__c: this.deltaSolde
         };
 
         if (this.isEditMode && this.editingRequestId) {
@@ -585,6 +560,30 @@ export default class Calender extends LightningElement {
             this.isLoading = false;
         }
     }
+
+    // Add new validation method for required fields
+validateRequiredFields() {
+    const requiredFields = [];
+
+    if (!this.startDate) {
+        requiredFields.push('Start Date');
+    }
+
+    if (!this.endDate) {
+        requiredFields.push('End Date');
+    }
+
+    if (!this.type) {
+        requiredFields.push('Leave Type');
+    }
+
+    if (requiredFields.length > 0) {
+        this.showToast('Error', `Please fill in the following required field(s): ${requiredFields.join(', ')}`, 'error');
+        return false;
+    }
+
+    return true;
+}
 
     // Validate form dates
     validateDates() {

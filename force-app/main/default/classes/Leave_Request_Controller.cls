@@ -6,14 +6,14 @@ public with sharing class Leave_Request_Controller {
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getRequests() {
         return [SELECT Id, Start_Date__c, End_Date__c, Status__c, Reason__c, Type__c, 
-                CreatedBy.Name, CreatedById
+                CreatedBy.Name, CreatedById, Business_Days__c, Manager_Comments__c
                 FROM Leave_Request__c 
                 ORDER BY CreatedDate DESC];
     }
 
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getMyRequests() {
-        return [SELECT Id, Start_Date__c, End_Date__c, Reason__c, Type__c, Status__c, CreatedBy.Name, Manager_Comments__c
+        return [SELECT Id, Start_Date__c, End_Date__c, Reason__c, Type__c, Status__c, CreatedBy.Name, Manager_Comments__c, Business_Days__c
                 FROM Leave_Request__c 
                 WHERE CreatedById = :UserInfo.getUserId()];
     }
@@ -43,20 +43,9 @@ public with sharing class Leave_Request_Controller {
     }
 
     @AuraEnabled
-    public static void cancelRequest(Id requestId) {
-        Leave_Request__c request = [SELECT Id, Status__c FROM Leave_Request__c WHERE Id = :requestId LIMIT 1];
-        if (request.Status__c != 'Pending') {
-            throw new AuraHandledException('Only pending requests can be cancelled.');
-        }
-        
-        request.Status__c = 'Cancelled';
-        update request;
-    }
-
-    @AuraEnabled
     public static void approveRequest(Id requestId, String comments) {
         Leave_Request__c req = [
-            SELECT Id, Start_Date__c, End_Date__c, Status__c, CreatedById
+            SELECT Id, Start_Date__c, End_Date__c, Status__c, CreatedById, Business_Days__c
             FROM Leave_Request__c
             WHERE Id = :requestId
             LIMIT 1
@@ -66,17 +55,12 @@ public with sharing class Leave_Request_Controller {
             throw new AuraHandledException('Seules les demandes en attente peuvent être approuvées.');
         }
 
-        Decimal nbJours = getDeltaSolde(req.Start_Date__c, req.End_Date__c);
-
         // Utiliser l'objet UserData__c qui référence le demandeur
         UserData__c demandeurData = [SELECT Id, Solde__c FROM UserData__c WHERE User__c = :req.CreatedById LIMIT 1];
 
-        if (demandeurData.Solde__c < nbJours) {
+        if (demandeurData.Solde__c < req.Business_Days__c) {
             throw new AuraHandledException('Le solde du demandeur est insuffisant.');
         }
-
-        demandeurData.Solde__c -= nbJours;
-        update demandeurData;
 
         req.Status__c = 'ManagerApproved';
         req.Manager_Comments__c = comments;
@@ -124,7 +108,7 @@ public with sharing class Leave_Request_Controller {
     public static Decimal getDeltaSolde(Date startDate, Date endDate) {
         try {
             // Get Holiday__c records instead of Map<String, String>
-            List<Holiday__c> holidays = HolidayService.getHolidays_MA();
+            List<Holiday__c> holidays = [SELECT Date__c FROM Holiday__c WHERE Date__c >= :startDate AND Date__c <= :endDate];
             Set<Date> holidayDates = new Set<Date>();
             
             // Extract dates from Holiday__c records
@@ -137,8 +121,8 @@ public with sharing class Leave_Request_Controller {
             Integer deltaSolde = 0;
             Date currentDate = startDate;
             while (currentDate <= endDate) {
-                Integer dayOfWeek = Integer.valueOf(((Datetime) currentDate).format('u')); // 6=Saturday, 7=Sunday
-                if (dayOfWeek != 6 && dayOfWeek != 7 && !holidayDates.contains(currentDate)) {
+                Integer dayOfWeek = Integer.valueOf(((Datetime) currentDate).format('u')); // 5=Saturday, 6=Sunday
+                if (dayOfWeek != 5 && dayOfWeek != 6 && !holidayDates.contains(currentDate)) {
                     deltaSolde++;
                 }
                 currentDate = currentDate.addDays(1);
@@ -153,7 +137,7 @@ public with sharing class Leave_Request_Controller {
     @AuraEnabled
     public static void approveRequestByRH(Id requestId, String comments) {
         Leave_Request__c req = [
-            SELECT Id, Status__c, Manager_Comments__c
+            SELECT Id, Status__c, Manager_Comments__c, CreatedById, Business_Days__c
             FROM Leave_Request__c
             WHERE Id = :requestId
             LIMIT 1
@@ -163,9 +147,18 @@ public with sharing class Leave_Request_Controller {
             throw new AuraHandledException('Seules les demandes approuvées par le manager peuvent être approuvées par les RH.');
         }
 
+        UserData__c user = [SELECT Id, Solde__c FROM UserData__c WHERE User__c = :req.CreatedById LIMIT 1];
+
+        if (user.Solde__c < req.Business_Days__c) {
+            throw new AuraHandledException('Le solde du demandeur est insuffisant.');
+        }
+
         req.Status__c = 'Approved';
         req.Manager_Comments__c = comments; // Assuming Manager_Comments__c can store RH comments as well, or create a new field
         update req;
+
+        user.Solde__c -= req.Business_Days__c;
+        update user;
     }
 
     @AuraEnabled

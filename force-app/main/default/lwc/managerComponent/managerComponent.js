@@ -1,8 +1,9 @@
 import { LightningElement, track, wire } from 'lwc';
-import FullCalendarJS from '@salesforce/resourceUrl/fullcalendarv3';
 import { loadStyle, loadScript } from 'lightning/platformResourceLoader';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { refreshApex } from '@salesforce/apex';
+
+import FullCalendarJS from '@salesforce/resourceUrl/fullcalendarv3';
 
 import getHolidays_MA from '@salesforce/apex/HolidayService.getHolidays_MA';
 import getRequests from '@salesforce/apex/Leave_Request_Controller.getRequests';
@@ -38,8 +39,8 @@ export default class ManagerComponent extends LightningElement {
                 console.log(`Manager - Holiday ${index}:`, {
                     Id: holiday.Id,
                     Name: holiday.Name,
-                    date__c: holiday.date__c,
-                    dateType: typeof holiday.date__c
+                    Date__c: holiday.Date__c,
+                    dateType: typeof holiday.Date__c
                 });
             });
             
@@ -247,9 +248,9 @@ export default class ManagerComponent extends LightningElement {
                 dayRender: function(date, cell) {
                     const dateStr = date.format('YYYY-MM-DD');
                     const isWeekend = (date.day() === 0 || date.day() === 6);
-                    // Handle both Date__c and date__c field names
+                    // Handle both Date__c and Date__c field names
                     const holidayRecord = self.holidays.find(holiday => {
-                        const holidayDate = holiday.Date__c || holiday.date__c;
+                        const holidayDate = holiday.Date__c || holiday.Date__c;
                         return holidayDate === dateStr;
                     });
                     const isHoliday = !!holidayRecord;

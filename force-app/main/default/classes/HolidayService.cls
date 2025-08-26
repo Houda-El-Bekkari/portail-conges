@@ -8,7 +8,7 @@ public with sharing class HolidayService {
             HttpRequest req = new HttpRequest();
             // Named Credentials !!!
             String year = String.valueOf(Date.today().year());
-            req.setEndpoint('https://date.nager.at/api/v3/PublicHolidays/' + year + '/MA');
+            req.setEndpoint('callout:Holidays' + year + '/MA');
             req.setMethod('GET');
             req.setTimeout(20000);
             
@@ -35,13 +35,13 @@ public with sharing class HolidayService {
     public static List<Holiday__c> fetchHolidays(Integer year) {
         List<Holiday__c> holidayRecords = new List<Holiday__c>();
         // don't fetch if year exists
-        if (year == [SELECT date__c FROM Holiday__c ORDER BY date__c ASC LIMIT 1].date__c.year()) {
-            return null;
-        }
+        // if (year == [SELECT Date__c FROM Holiday__c ORDER BY Date__c ASC LIMIT 1].Date__c.year()) {
+        //     return null;
+        // }
 
         try {
             HttpRequest req = new HttpRequest();
-            req.setEndpoint('https://date.nager.at/api/v3/PublicHolidays/' + year + '/MA');
+            req.setEndpoint('callout:Holidays_MA/' + year + '/MA');
             req.setMethod('GET');
             req.setTimeout(20000);
 
@@ -53,7 +53,7 @@ public with sharing class HolidayService {
                     String dateStr = (String) holiday.get('date');
                     String nameStr = (String) holiday.get('localName');
                     holidayRecords.add(new Holiday__c(
-                        date__c = Date.valueOf(dateStr),
+                        Date__c = Date.valueOf(dateStr),
                         Name = nameStr
                     ));
                 }
@@ -71,7 +71,7 @@ public with sharing class HolidayService {
     @AuraEnabled(cacheable=true)
     public static List<Holiday__c> getHolidays_MA() {
         return [
-            SELECT Id, Name, date__c 
+            SELECT Id, Name, Date__c 
             FROM Holiday__c 
             ORDER BY Date__c ASC
         ];

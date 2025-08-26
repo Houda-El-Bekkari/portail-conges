@@ -11,29 +11,59 @@
             <div class="slds-grid slds-wrap">
                 <!-- Date Selection Section -->
                 <div class="slds-col slds-size_1-of-2 slds-p-right_medium">
-                    <div class="slds-form-element">
-                        <label class="slds-form-element__label">Start Date</label>
+                    <div class="slds-form-element slds-is-required">
+                        <label class="slds-form-element__label">
+                            <abbr class="slds-required" title="required">*</abbr>Start Date
+                        </label>
                         <div class="date-input" data-id="startDate" lwc:dom="manual"></div>
                     </div>
 
-                    <div class="slds-form-element slds-m-top_small">
-                        <label class="slds-form-element__label">End Date</label>
+                    <div class="slds-form-element slds-m-top_small slds-is-required">
+                        <label class="slds-form-element__label">
+                            <abbr class="slds-required" title="required">*</abbr>End Date
+                        </label>
                         <div class="date-input" data-id="endDate" lwc:dom="manual"></div>
                     </div>
 
-                    <lightning-input type="text" label="Description" value={reason} onchange={handleReasonChange} class="slds-m-top_small"></lightning-input>
+                    <lightning-input 
+                        type="text" 
+                        label="Description (Optional)" 
+                        value={reason} 
+                        onchange={handleReasonChange} 
+                        class="slds-m-top_small">
+                    </lightning-input>
 
-                    <lightning-combobox label="Leave Type" value={type} options={typeOptions} onchange={handleTypeChange} class="slds-m-top_small"></lightning-combobox>
+                    <lightning-combobox 
+                        label="Leave Type" 
+                        value={type} 
+                        options={typeOptions} 
+                        onchange={handleTypeChange} 
+                        class="slds-m-top_small"
+                        required>
+                    </lightning-combobox>
 
                     <div class="slds-m-top_medium">
-                        <lightning-button label={submitButtonLabel} onclick={handleSubmit} variant="brand" disabled={isLoading}></lightning-button>
-                        <lightning-button if:true={isEditMode} label="Cancel" onclick={handleCancelEdit} variant="neutral" class="slds-m-left_small"></lightning-button>
+                        <lightning-button 
+                            label={submitButtonLabel} 
+                            onclick={handleSubmit} 
+                            variant="brand" 
+                            disabled={isLoading}>
+                        </lightning-button>
+                        <lightning-button 
+                            if:true={isEditMode} 
+                            label="Cancel" 
+                            onclick={handleCancelEdit} 
+                            variant="neutral" 
+                            class="slds-m-left_small">
+                        </lightning-button>
                     </div>
                 </div>
 
                 <!-- Calendar Section -->
                 <div class="slds-col slds-size_1-of-2">
-                    <label class="slds-form-element__label slds-m-bottom_small">Select dates on the calendar</label>
+                    <label class="slds-form-element__label slds-m-bottom_small">
+                        <abbr class="slds-required" title="required">*</abbr>Select dates on the calendar
+                    </label>
                     <div style="background:#ffffff;" class="slds-box">
                         <div id="calendar" class="fullcalendarjs"></div>
                     </div>
@@ -52,8 +82,9 @@
                             <strong>{request.Start_Date__c} - {request.End_Date__c}</strong><br/>
                             Status: {request.Status__c}<br/>
                             <span if:true={request.Reason__c}>Reason: {request.Reason__c}<br/></span>
-                            <span if:true={request.Type__c}>Type: {request.Type__c}</span>
-                            
+                            <span if:true={request.Type__c}>Type: {request.Type__c}<br/></span>
+                            <span if:true={request.Business_Days__c}>Business Days: {request.Business_Days__c}</span>
+
                             <!-- Manager Comments for non-pending requests -->
                             <template if:false={request.isPending}>
                                 <div if:true={request.Manager_Comments__c} class="slds-m-top_small slds-p-top_small slds-border_top">
@@ -72,14 +103,6 @@
                         <div class="slds-col slds-no-flex" if:true={request.isPending}>
                             <lightning-button label="Edit" data-id={request.Id} onclick={handleEdit} variant="neutral" size="small" class="slds-m-right_x-small"></lightning-button>
                             <lightning-button label="Cancel" data-id={request.Id} onclick={handleCancel} variant="destructive" size="small"></lightning-button>
-                            <lightning-button 
-                                label="Approuver" 
-                                data-id={request.Id} 
-                                onclick={handleApprove} 
-                                variant="success" 
-                                size="small" 
-                                class="slds-m-left_x-small">
-                            </lightning-button>
                         </div>
                     </div>
                 </div>
