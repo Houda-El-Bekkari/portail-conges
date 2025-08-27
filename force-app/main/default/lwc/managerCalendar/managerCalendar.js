@@ -1,5 +1,5 @@
 import { LightningElement, track, wire } from 'lwc';
-import getAllRequests from '@salesforce/apex/Leave_Request_Controller.getAllRequests';
+import getRequests from '@salesforce/apex/Leave_Request_Controller.getRequests';
 import approveRequest from '@salesforce/apex/Leave_Request_Controller.approveRequest';
 import rejectRequest from '@salesforce/apex/Leave_Request_Controller.rejectRequest';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
@@ -7,7 +7,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 export default class ManagerCalendar extends LightningElement {
     @track requests = [];
 
-    @wire(getAllRequests)
+    @wire(getRequests)
     wiredRequests({ data, error }) {
         if (data) {
             this.requests = data.map(r => ({
