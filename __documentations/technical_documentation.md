@@ -384,19 +384,22 @@ export default class ManagerComponent extends LightningElement {
 graph
     start[Création ou modification <br>de Demande]
     status-1{isPending}
-    N-M[Notifier manageur]
     status-2{Approuvée <br>par manageur}
+    N-M[Notifier manageur]
     N-RH[notifier RH]
     N-E[notifier demandeur]
     Email-E[E-mail demandeur]
+    End((( )))
 
-    start --> status-1
-    status-1 --true--> N-M
+    start(( )) --> status-1
     status-1 --false--> status-2
     status-2 --true--> N-RH
     N-RH --> N-E
     status-2 --false--> N-E
     N-E --> Email-E
+    status-1 --true--> N-M
+    Email-E --> End
+    N-M ---->End
 ```
 
 ---
