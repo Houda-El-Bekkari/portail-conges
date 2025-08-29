@@ -1,18 +1,20 @@
 import { LightningElement, api, track, wire } from 'lwc';
-import FullCalendarJS from '@salesforce/resourceUrl/fullcalendarv3';
 import { loadStyle, loadScript } from 'lightning/platformResourceLoader';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { refreshApex } from '@salesforce/apex';
 import { getPicklistValues, getObjectInfo } from 'lightning/uiObjectInfoApi';
 
-import createRequest from '@salesforce/apex/Leave_Request_Controller.createRequest';
-import getHolidays from '@salesforce/apex/HolidayService.getHolidays';
 import getHolidays_MA from '@salesforce/apex/HolidayService.getHolidays_MA';
+
+import createRequest from '@salesforce/apex/Leave_Request_Controller.createRequest';
 import updateRequest from '@salesforce/apex/Leave_Request_Controller.updateRequest';
 import deleteRequest from '@salesforce/apex/Leave_Request_Controller.deleteRequest';
 import getMyRequests from '@salesforce/apex/Leave_Request_Controller.getMyRequests';
-import approveRequest from '@salesforce/apex/Leave_Request_Controller.approveRequest';
 
+import getSolde from '@salesforce/apex/Leave_Request_Controller.getSolde';
+import getDeltaSolde from '@salesforce/apex/Leave_Request_Controller.getDeltaSolde';
+
+import FullCalendarJS from '@salesforce/resourceUrl/fullcalendarv3';
 import flatpickrBase from '@salesforce/resourceUrl/flatpickr';
 const flatpickrJs = flatpickrBase + '/flatpickr.min.js';
 const flatpickrCss = flatpickrBase + '/flatpickr.min.css';
@@ -21,43 +23,65 @@ export default class Calender extends LightningElement {
     // Component state
     jsInitialised = false;
     flatpickrInitialized = false;
+    calendarInitialized = false; // Add this missing flag
     startDatePicker = null;
     endDatePicker = null;
-    @track disabledDates = [];
-    @track holidayLabels = {};
+    
+    @track holidays = [];
+    @track holidaysLoaded = false;
 
+    @track userBalance = 0;
 
-    // Method to fetch holidays from the API
-    // Method to fetch holidays from the API
-async fetchHolidays() {
-    try {
-        const data = await getHolidays_MA(); // [{ date: '2025-01-01', name: 'Nouvel An' }, ...]
-        console.log('Fetched holidays:', data);
-
-        // Stocker les noms avec les dates
-        this.disabledDates = data.map(item => item.date);
-        this.holidayLabels = data.reduce((acc, item) => {
-            acc[item.date] = item.name;
-            return acc;
-        }, {});
-    } catch (error) {
-        console.error("Error fetching holidays:", error);
-        this.showToast("Error", "Failed to load holidays", "error");
+    @track deltaSolde = 0;
+    async updateDeltaSolde() {
+        if (!this.startDate || !this.endDate) return 0;
+        this.deltaSolde = await getDeltaSolde({ startDate: this.startDate, endDate: this.endDate })
+            .then(result => result)
+            .catch(() => 0);
     }
-}
 
-handleApprove(event) {
-    const requestId = event.target.dataset.id;
+    get isBalanceSufficient() {
+        return this.userBalance >= this.deltaSolde && this.deltaSolde > 0;
+    }
 
-    approveRequest({ requestId })
-        .then(() => {
-            this.showToast('Succès', 'Demande approuvée et solde mis à jour.', 'success');
-            return refreshApex(this.req);
-        })
-        .catch(error => {
-            this.showToast('Erreur', error.body?.message || 'Erreur d’approbation', 'error');
-        });
-}
+    // Update the wiredHolidays method - add more debugging
+    @wire(getHolidays_MA)
+    wiredHolidays(result) {
+        console.log('wiredHolidays called:', result);
+        this.holidaysWire = result;
+        if (result.data) {
+            console.log('Holiday records received:', result.data);
+            console.log('Holiday count:', result.data.length);
+            console.log('Sample holiday structure:', JSON.stringify(result.data[0], null, 2));
+            
+            // Check each holiday's date format
+            result.data.forEach((holiday, index) => {
+                console.log(`Holiday ${index}:`, {
+                    Id: holiday.Id,
+                    Name: holiday.Name,
+                    Date__c: holiday.Date__c,
+                    dateType: typeof holiday.Date__c
+                });
+            });
+            
+            this.holidays = result.data;
+            this.holidaysLoaded = true;
+            
+            if (this.jsInitialised && !this.calendarInitialized) {
+                console.log('Both scripts and holidays loaded - initializing calendar');
+                this.initializeCalendar();
+                this.initializeDatePickers();
+            } else if (this.calendarInitialized) {
+                // If calendar is already initialized, refresh events
+                console.log('Calendar already initialized, refreshing events');
+                this.refreshCalendarEvents();
+            }
+        } else if (result.error) {
+            console.error('Error loading holidays:', result.error);
+            this.holidays = [];
+            this.holidaysLoaded = true; // Still set to true to allow calendar initialization
+        }
+    }
 
     
     // Form data
@@ -94,6 +118,17 @@ handleApprove(event) {
         } else if (result.error) {
             console.error('Error loading requests:', result.error);
             this.requestsData = [];
+        }
+    }
+
+    // Add this wire method
+    @wire(getSolde)
+    wiredUserBalance({ error, data }) {
+        if (data !== undefined) {
+            this.userBalance = data;
+        } else if (error) {
+            console.error('Error fetching user balance:', error);
+            this.userBalance = 0;
         }
     }
 
@@ -142,38 +177,67 @@ handleApprove(event) {
 
     // ========== COMPONENT LIFECYCLE ==========
     renderedCallback() {
-    if (this.jsInitialised) return;
-    this.jsInitialised = true;
+        if (this.jsInitialised) return;
+        this.jsInitialised = true;
 
-    Promise.all([
-        loadScript(this, FullCalendarJS + '/FullCalenderV3/jquery.min.js'),
-        loadScript(this, FullCalendarJS + '/FullCalenderV3/moment.min.js'),
-        loadScript(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.js'),
-        loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css'),
-        loadScript(this, flatpickrJs),
-        loadStyle(this, flatpickrCss)
-    ])
-    .then(async () => {
-        await this.fetchHolidays(); // 👈 Important : attendre les dates fériées
-        this.initializeCalendar();  // 👈 Ensuite on initialise
-        this.initializeDatePickers();
-    })
-    .catch(error => {
-        console.error('Failed to load calendar resources:', error);
-        this.showToast('Error', 'Failed to load calendar', 'error');
-    });
-}
+        // Add custom CSS for holiday events
+        const style = document.createElement('style');
+        style.textContent = `
+            .holiday-event {
+                opacity: 0.8 !important;
+                font-weight: bold !important;
+            }
+            .holiday-label {
+                pointer-events: none;
+                z-index: 1;
+            }
+            .weekend-cell {
+                opacity: 0.6;
+            }
+            .holiday-cell {
+                position: relative;
+            }
+        `;
+        document.head.appendChild(style);
 
+        console.log('Loading scripts...');
+        Promise.all([
+            loadScript(this, FullCalendarJS + '/FullCalenderV3/jquery.min.js'),
+            loadScript(this, FullCalendarJS + '/FullCalenderV3/moment.min.js'),
+            loadScript(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.js'),
+            loadStyle(this, FullCalendarJS + '/FullCalenderV3/fullcalendar.min.css'),
+            loadScript(this, flatpickrJs),
+            loadStyle(this, flatpickrCss)
+        ])
+            .then(() => {
+                console.log('Scripts loaded. Holidays loaded?', this.holidaysLoaded, 'Calendar initialized?', this.calendarInitialized);
+                if (this.holidaysLoaded && !this.calendarInitialized) {
+                    console.log('Initializing calendar from renderedCallback');
+                    this.initializeCalendar();
+                    this.initializeDatePickers();
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load calendar resources:', error);
+                this.showToast('Error', 'Failed to load calendar', 'error');
+            });
+    }
 
     // ========== DATE PICKER INITIALIZATION ==========
     initializeDatePickers() {
         if (this.flatpickrInitialized) return;
         this.flatpickrInitialized = true;
 
-        // Disable weekends and holidays
+        console.log('Initializing date pickers with holidays:', this.holidays);
+
+        // Disable weekends and holidays using holidays array directly
         const disableWeekends = (date) => (date.getDay() === 0 || date.getDay() === 6);
-        const holidayDatesForFlatpickr = this.disabledDates.map(dateStr => new Date(dateStr));
-        const disableOptions = [disableWeekends, ...holidayDatesForFlatpickr];
+        const disableHolidays = (date) => {
+            const dateStr = date.toISOString().split('T')[0];
+            return this.holidays.some(holiday => holiday.Date__c === dateStr);
+        };
+
+        const disableOptions = [disableWeekends, disableHolidays];
 
         // Create both date pickers
         this.startDatePicker = this.createDatePicker('startDate', (dateStr) => { this.startDate = dateStr; }, disableOptions);
@@ -195,12 +259,22 @@ handleApprove(event) {
     }
 
     // ========== CALENDAR INITIALIZATION ==========
-    initializeCalendar() { 
+    initializeCalendar() {
+        if (this.calendarInitialized) {
+            console.log('Calendar already initialized, skipping');
+            return;
+        }
+        
         const calendarElement = this.template.querySelector('div.fullcalendarjs');
+        if (!calendarElement) {
+            console.error('Calendar element not found');
+            return;
+        }
+
         const self = this;
+        console.log('Initializing calendar with holidays:', this.holidays.length, 'holidays');
 
         $(calendarElement).fullCalendar({
-            // Calendar configuration
             header: {
                 left: 'prev,next today',
                 center: 'title',
@@ -210,106 +284,158 @@ handleApprove(event) {
             navLinks: true, 
             editable: true,
             eventLimit: true,
-            events: [], // Start with empty events, will be populated later
+            
+            events: function(start, end, timezone, callback) {
+                console.log('Events function called for range:', start.format(), 'to', end.format());
+                const events = self.getCalendarEvents();
+                console.log('Returning events from events function:', events);
+                console.log('Holiday events:', events.filter(e => e.id && e.id.startsWith('holiday-')));
+                callback(events);
+            },
+            
             dragScroll: true,
             droppable: true,
             weekNumbers: true,
             selectable: true,
             
-            // Selection constraints
-            selectConstraint: { dow: [1, 2, 3, 4, 5] }, // Monday to Friday only
+            selectConstraint: { dow: [1, 2, 3, 4, 5] },
             selectAllow: function(selectInfo) {
                 const day = selectInfo.start.day();
                 const dateStr = selectInfo.start.format('YYYY-MM-DD');
                 
-                // Block weekends and holidays
                 if (day === 0 || day === 6) return false;
-                if (self.disabledDates.includes(dateStr)) return false;
+                if (self.holidays.some(holiday => holiday.Date__c === dateStr)) {
+                    return false;
+                }
                 
                 return true;
             },
             
-            // Style weekends and holidays
             dayRender: function(date, cell) {
-    const dateStr = date.format('YYYY-MM-DD');
-    const isWeekend = (date.day() === 0 || date.day() === 6);
-    const isHoliday = self.disabledDates.includes(dateStr);
+                const dateStr = date.format('YYYY-MM-DD');
+                const isWeekend = (date.day() === 0 || date.day() === 6);
+                const holidayRecord = self.holidays.find(holiday => holiday.Date__c === dateStr);
+                const isHoliday = !!holidayRecord;
 
-    if (isWeekend || isHoliday) {
-        cell.css({
-            'background-color': '#f3f3f3',
-            'color': '#666',
-            'cursor': 'not-allowed'
-        });
-        cell.addClass(isWeekend ? 'weekend-cell' : 'disabled-date');
+                if (isWeekend) {
+                    cell.css({
+                        'background-color': '#f3f3f3',
+                        'color': '#666',
+                        'cursor': 'not-allowed'
+                    });
+                    cell.addClass('weekend-cell');
+                }
+                
+                if (isHoliday && holidayRecord) {
+                    console.log(`Applying holiday styling to ${dateStr} for:`, holidayRecord.Name);
+                    cell.css({
+                        'background-color': '#ffebee',
+                        'color': '#c62828',
+                        'cursor': 'not-allowed',
+                        'font-weight': 'bold'
+                    });
+                    cell.addClass('holiday-cell');
 
-        // Ajoute un label s’il y a un nom de jour férié
-        const label = self.holidayLabels[dateStr];
-        if (label) {
-            const labelElement = document.createElement('div');
-            labelElement.textContent = label;
-            labelElement.style.fontSize = '0.7rem';
-            labelElement.style.marginTop = '3px';
-            labelElement.style.color = '#b30000';
-            cell.append(labelElement);
-        }
-    }
-},
+                    const labelElement = document.createElement('div');
+                    labelElement.textContent = holidayRecord.Name;
+                    labelElement.className = 'holiday-label';
+                    labelElement.style.cssText = `
+                        font-size: 0.7rem;
+                        margin-top: 3px;
+                        color: #b71c1c;
+                        font-weight: bold;
+                        text-align: center;
+                        line-height: 1.1;
+                        word-break: break-word;
+                    `;
+                    cell.append(labelElement);
+                }
+            },
             
-            // Handle date selection
             select: function(start, end) {
                 self.handleDateSelection(start, end);
             },
             
-            // Handle event clicks
             eventClick: function (calEvent, jsEvent, view) {
-                // Show request details when clicking on a request event
-                self.handleRequestEventClick(calEvent);
+                if (calEvent.id && calEvent.id.startsWith('holiday-')) {
+                    self.showToast('Holiday', calEvent.title, 'info');
+                } else {
+                    self.handleRequestEventClick(calEvent);
+                }
+            },
+            
+            eventRender: function(event, element) {
+                console.log('eventRender called for:', event.title, 'ID:', event.id);
+                if (event.id && event.id.startsWith('holiday-')) {
+                    console.log('Rendering holiday event:', event.title);
+                    element.css({
+                        'background-color': '#ffcdd2 !important',
+                        'border-color': '#c62828 !important',
+                        'color': '#b71c1c !important'
+                    });
+                }
+                return element;
             }
         });
         
-        // Load initial events after calendar is created
-        this.loadCalendarEvents();
+        this.calendarInitialized = true;
+        console.log('Calendar initialization complete');
+        // REMOVE THIS LINE - this is causing the conflict
+        // this.loadCalendarEvents();
     }
 
     // Convert leave requests to calendar events
     getCalendarEvents() {
-        if (!this.requests || this.requests.length === 0) return [];
-        
-        return this.requests.map(request => {
-            // Determine color based on leave type
+        let events = [];
+
+    console.log('=== Getting Calendar Events ===');
+    console.log('Requests available:', this.requests ? this.requests.length : 0);
+    console.log('Holidays available:', this.holidays ? this.holidays.length : 0);
+
+    if (this.requests && this.requests.length > 0) {
+        const requestEvents = this.requests.map(request => {
             let color = this.getColorForType(request.Type__c);
-            
-            // Add opacity based on status (optional - for additional visual feedback)
             let backgroundColor = color;
             let borderColor = color;
             
             switch(request.Status__c) {
                 case 'Approved':
-                    // Keep full opacity for approved
                     break;
                 case 'Rejected':
-                    // Darker border for rejected
-                    borderColor = '#000000';
-                    backgroundColor = color + '80'; // Add transparency
+                    borderColor = '#ff0000ff';
+                    backgroundColor = color + '80';
                     break;
                 case 'Pending':
-                    // Dashed border for pending (will be handled in CSS)
                     break;
             }
 
-            return {
+            const event = {
                 id: request.Id,
                 title: `${request.Type__c || 'Leave'} - ${request.Status__c}`,
                 start: request.Start_Date__c,
-                end: this.addDaysToDate(request.End_Date__c, 1), // FullCalendar end is exclusive
+                end: this.addDaysToDate(request.End_Date__c, 1),
                 color: backgroundColor,
                 borderColor: borderColor,
                 allDay: true,
-                requestData: request, // Store original request data
-                className: `status-${request.Status__c?.toLowerCase() || 'unknown'}` // CSS class for additional styling
+                requestData: request,
+                className: `status-${request.Status__c?.toLowerCase() || 'unknown'}`
             };
+            console.log('Created request event:', event.title, 'from', event.start, 'to', event.end);
+            return event;
         });
+        events = events.concat(requestEvents);
+        console.log('Added request events:', requestEvents.length);
+    }
+
+    // REMOVED: Holiday events - we only want the labels, not the events
+    // The holidays are still used for:
+    // 1. Day styling in dayRender
+    // 2. Date selection blocking in selectAllow
+    // 3. Date picker disabling
+    
+    console.log('Total calendar events (requests only):', events.length);
+    console.log('Final events array:', events.map(e => ({ id: e.id, title: e.title, start: e.start })));
+    return events;
     }
 
     // Get color based on leave type
@@ -346,26 +472,23 @@ handleApprove(event) {
 
     // Load initial calendar events
     loadCalendarEvents() {
-        const calendarElement = this.template.querySelector('div.fullcalendarjs');
-        if (calendarElement && $(calendarElement).fullCalendar) {
-            const events = this.getCalendarEvents();
-            $(calendarElement).fullCalendar('addEventSource', events);
-        }
+        // This method is no longer needed since we use the events function
+        console.log('loadCalendarEvents called - but using events function instead');
+        // Don't add any events here - the events function handles it
     }
 
     // Refresh calendar events when requests change
     refreshCalendarEvents() {
+        if (!this.calendarInitialized) return;
+
         const calendarElement = this.template.querySelector('div.fullcalendarjs');
         if (calendarElement && $(calendarElement).fullCalendar) {
-            // Remove all existing events
-            $(calendarElement).fullCalendar('removeEvents');
-            // Add updated events
-            const events = this.getCalendarEvents();
-            if (events && events.length > 0) {
-                $(calendarElement).fullCalendar('addEventSource', events);
-            }
-            // Ensure calendar remains selectable
-            $(calendarElement).fullCalendar('option', 'selectable', true);
+            console.log('Refreshing calendar events...');
+            
+            // Use refetchEvents to reload all events using the events function
+            $(calendarElement).fullCalendar('refetchEvents');
+            
+            console.log('Events refreshed');
         }
     }
 
@@ -396,25 +519,35 @@ handleApprove(event) {
 
     // ========== FORM SUBMISSION ==========
     async handleSubmit() {
+        // Validate required fields first
+        if (!this.validateRequiredFields()) return;
+        
         // Validate dates
         if (!this.validateDates()) return;
 
+        // Check balance
+        await this.updateDeltaSolde();
+        if (!this.isBalanceSufficient) {
+            this.showToast('Error', `Insufficient leave balance. Required: ${this.deltaSolde} days, Available: ${this.userBalance} days`, 'error');
+            return;
+        }
+
         this.isLoading = true;
 
-        // Prepare request data
+        // Rest of your submission logic...
         const leaveRequest = {
             sobjectType: 'Leave_Request__c',
             Start_Date__c: this.startDate,
             End_Date__c: this.endDate,
             Reason__c: this.reason,
-            Type__c: this.type
+            Type__c: this.type,
+            Business_Days__c: this.deltaSolde
         };
 
         if (this.isEditMode && this.editingRequestId) {
             leaveRequest.Id = this.editingRequestId;
         }
 
-        // Submit request
         const operation = this.isEditMode ? updateRequest : createRequest;
         try {
             await operation({ request: leaveRequest });
@@ -427,6 +560,30 @@ handleApprove(event) {
             this.isLoading = false;
         }
     }
+
+    // Add new validation method for required fields
+validateRequiredFields() {
+    const requiredFields = [];
+
+    if (!this.startDate) {
+        requiredFields.push('Start Date');
+    }
+
+    if (!this.endDate) {
+        requiredFields.push('End Date');
+    }
+
+    if (!this.type) {
+        requiredFields.push('Leave Type');
+    }
+
+    if (requiredFields.length > 0) {
+        this.showToast('Error', `Please fill in the following required field(s): ${requiredFields.join(', ')}`, 'error');
+        return false;
+    }
+
+    return true;
+}
 
     // Validate form dates
     validateDates() {

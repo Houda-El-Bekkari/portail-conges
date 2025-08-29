@@ -1,32 +1,69 @@
 <template>
     <lightning-card title={formTitle}>
+        <!-- Simple Solde Display -->
+        <div class="slds-m-around_medium slds-border_bottom">
+            <p class="slds-text-body_regular slds-p-bottom_small">
+                <strong>Solde: </strong>{userBalance} days
+            </p>
+        </div>
+
         <div class="slds-m-around_medium">
             <div class="slds-grid slds-wrap">
                 <!-- Date Selection Section -->
                 <div class="slds-col slds-size_1-of-2 slds-p-right_medium">
-                    <div class="slds-form-element">
-                        <label class="slds-form-element__label">Start Date</label>
+                    <div class="slds-form-element slds-is-required">
+                        <label class="slds-form-element__label">
+                            <abbr class="slds-required" title="required">*</abbr>Start Date
+                        </label>
                         <div class="date-input" data-id="startDate" lwc:dom="manual"></div>
                     </div>
 
-                    <div class="slds-form-element slds-m-top_small">
-                        <label class="slds-form-element__label">End Date</label>
+                    <div class="slds-form-element slds-m-top_small slds-is-required">
+                        <label class="slds-form-element__label">
+                            <abbr class="slds-required" title="required">*</abbr>End Date
+                        </label>
                         <div class="date-input" data-id="endDate" lwc:dom="manual"></div>
                     </div>
 
-                    <lightning-input type="text" label="Description" value={reason} onchange={handleReasonChange} class="slds-m-top_small"></lightning-input>
+                    <lightning-input 
+                        type="text" 
+                        label="Description (Optional)" 
+                        value={reason} 
+                        onchange={handleReasonChange} 
+                        class="slds-m-top_small">
+                    </lightning-input>
 
-                    <lightning-combobox label="Leave Type" value={type} options={typeOptions} onchange={handleTypeChange} class="slds-m-top_small"></lightning-combobox>
+                    <lightning-combobox 
+                        label="Leave Type" 
+                        value={type} 
+                        options={typeOptions} 
+                        onchange={handleTypeChange} 
+                        class="slds-m-top_small"
+                        required>
+                    </lightning-combobox>
 
                     <div class="slds-m-top_medium">
-                        <lightning-button label={submitButtonLabel} onclick={handleSubmit} variant="brand" disabled={isLoading}></lightning-button>
-                        <lightning-button if:true={isEditMode} label="Cancel" onclick={handleCancelEdit} variant="neutral" class="slds-m-left_small"></lightning-button>
+                        <lightning-button 
+                            label={submitButtonLabel} 
+                            onclick={handleSubmit} 
+                            variant="brand" 
+                            disabled={isLoading}>
+                        </lightning-button>
+                        <lightning-button 
+                            if:true={isEditMode} 
+                            label="Cancel" 
+                            onclick={handleCancelEdit} 
+                            variant="neutral" 
+                            class="slds-m-left_small">
+                        </lightning-button>
                     </div>
                 </div>
 
                 <!-- Calendar Section -->
                 <div class="slds-col slds-size_1-of-2">
-                    <label class="slds-form-element__label slds-m-bottom_small">Select dates on the calendar</label>
+                    <label class="slds-form-element__label slds-m-bottom_small">
+                        <abbr class="slds-required" title="required">*</abbr>Select dates on the calendar
+                    </label>
                     <div style="background:#ffffff;" class="slds-box">
                         <div id="calendar" class="fullcalendarjs"></div>
                     </div>
@@ -39,24 +76,34 @@
     <lightning-card if:true={requests.length} title="Leave Requests" class="slds-m-top_medium">
         <div class="slds-m-around_medium">
             <template for:each={requests} for:item="request">
-                <div key={request.Id} class="slds-box slds-m-bottom_small slds-grid slds-grid_align-spread">
-                    <div class="slds-col">
-                        <strong>{request.Start_Date__c} - {request.End_Date__c}</strong><br/>
-                        Status: {request.Status__c}<br/>
-                        <span if:true={request.Reason__c}>Reason: {request.Reason__c}<br/></span>
-                        <span if:true={request.Type__c}>Type: {request.Type__c}</span>
-                    </div>
-                    <div class="slds-col slds-no-flex" if:true={request.isPending}>
-                        <lightning-button label="Edit" data-id={request.Id} onclick={handleEdit} variant="neutral" size="small" class="slds-m-right_x-small"></lightning-button>
-                        <lightning-button label="Cancel" data-id={request.Id} onclick={handleCancel} variant="destructive" size="small"></lightning-button>
-                        <lightning-button 
-    label="Approuver" 
-    data-id={request.Id} 
-    onclick={handleApprove} 
-    variant="success" 
-    size="small" 
-    class="slds-m-left_x-small">
-</lightning-button>
+                <div key={request.Id} class="slds-box slds-m-bottom_small">
+                    <div class="slds-grid slds-grid_align-spread">
+                        <div class="slds-col">
+                            <strong>{request.Start_Date__c} - {request.End_Date__c}</strong><br/>
+                            Status: {request.Status__c}<br/>
+                            <span if:true={request.Reason__c}>Reason: {request.Reason__c}<br/></span>
+                            <span if:true={request.Type__c}>Type: {request.Type__c}<br/></span>
+                            <span if:true={request.Business_Days__c}>Business Days: {request.Business_Days__c}</span>
+
+                            <!-- Manager Comments for non-pending requests -->
+                            <template if:false={request.isPending}>
+                                <div if:true={request.Manager_Comments__c} class="slds-m-top_small slds-p-top_small slds-border_top">
+                                    <div class="slds-text-body_small slds-text-color_weak">
+                                        <lightning-icon icon-name="utility:comments" size="xx-small" class="slds-m-right_xx-small"></lightning-icon>
+                                        <strong>Manager Comments:</strong>
+                                    </div>
+                                    <div class="slds-text-body_small slds-m-top_xx-small">
+                                        {request.Manager_Comments__c}
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <!-- Action buttons for pending requests -->
+                        <div class="slds-col slds-no-flex" if:true={request.isPending}>
+                            <lightning-button label="Edit" data-id={request.Id} onclick={handleEdit} variant="neutral" size="small" class="slds-m-right_x-small"></lightning-button>
+                            <lightning-button label="Cancel" data-id={request.Id} onclick={handleCancel} variant="destructive" size="small"></lightning-button>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -64,19 +111,17 @@
     </lightning-card>
     
     <c-historique-demandes>
-       
-    <lightning-card title="Historique des demandes">
-        <template if:true={demandes}>
-            <lightning-datatable
-                key-field="Id"
-                data={demandes}
-                columns={columns}>
-            </lightning-datatable>
-        </template>
-        <template if:true={error}>
-            <p class="slds-text-color_error">{error}</p>
-        </template>
-    </lightning-card>
-
+        <lightning-card title="Historique des demandes">
+            <template if:true={demandes}>
+                <lightning-datatable
+                    key-field="Id"
+                    data={demandes}
+                    columns={columns}>
+                </lightning-datatable>
+            </template>
+            <template if:true={error}>
+                <p class="slds-text-color_error">{error}</p>
+            </template>
+        </lightning-card>
     </c-historique-demandes>
 </template>
