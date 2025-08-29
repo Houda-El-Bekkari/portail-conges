@@ -1,26 +1,33 @@
-List<User> activeUsers = [SELECT Id, Name FROM User WHERE IsActive = true];
-System.debug('Active Users: ' + activeUsers.size());
+String permSetName = 'leave_request_access';
 
-List<UserData__c> userDataToInsert = new List<UserData__c>();
+PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = :permSetName LIMIT 1];
 
-for(User u : activeUsers) {
-    UserData__c userData = new UserData__c();
-    userData.User__c = u.Id;
-    userData.Solde__c = 22;
-    userData.Name = u.Name + ' - Leave Data'; // Set a name for the record
-    userDataToInsert.add(userData);
+Id stdProfileId = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1].Id;
+
+List<User> stdUsers = [SELECT Id FROM User WHERE ProfileId = :stdProfileId AND IsActive = TRUE];
+
+List<PermissionSetAssignment> assignments = new List<PermissionSetAssignment>();
+
+for (User u : stdUsers) {
+    // Skip if already assigned
+    Boolean alreadyAssigned = [
+        SELECT COUNT() 
+        FROM PermissionSetAssignment 
+        WHERE AssigneeId = :u.Id AND PermissionSetId = :ps.Id
+    ] > 0;
+    
+    if (!alreadyAssigned) {
+        assignments.add(new PermissionSetAssignment(
+            AssigneeId = u.Id,
+            PermissionSetId = ps.Id
+        ));
+    }
 }
 
-// Insert all UserData records
-if(!userDataToInsert.isEmpty()) {
-    insert userDataToInsert;
-    System.debug('Created ' + userDataToInsert.size() + ' UserData records');
+if (!assignments.is
+Empty()) {
+    insert assignments;
+    System.debug('Assigned perm set to ' + assignments.size() + ' users.');
+} else {
+    System.debug('All users already have the permission set.');
 }
-
-// Verify the records were created
-List<UserData__c> createdRecords = [SELECT Id, Name, User__c, Solde__c FROM UserData__c];
-System.debug('Total UserData records now: ' + createdRecords.size());
-
-// Check current user specifically
-List<UserData__c> myRecord = [SELECT Id, User__c, Solde__c FROM UserData__c WHERE User__c = :UserInfo.getUserId()];
-System.debug('My UserData record: ' + myRecord);

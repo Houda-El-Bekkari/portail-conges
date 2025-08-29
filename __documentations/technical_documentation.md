@@ -11,23 +11,14 @@
 
 ## 📋 Table des Matières
 
-1. Vue d'ensemble
-2. Architecture Technique
-3. Modèle de Données
-4. Classes Apex
-5. Lightning Web Components
-6. Flows et Automatisations
-7. Intégrations
-8. Tests et Couverture
-9. Déploiement
-10. Maintenance
+
 
 ---
 
 ## 🏗️ Vue d'ensemble
 
 ### Objectif du Projet
-Le portail de gestion des demandes de congés est une solution Salesforce complète permettant aux employés de soumettre des demandes de congés via une interface moderne et intuitive, avec un workflow d'approbation à deux niveaux (Manager → RH).
+Le portail de gestion des demandes de congés est une solution Salesforce complète permettant aux employés de soumettre des demandes de congés via une interface moderne et intuitive, avec un workflow d'approbation à deux niveaux (Manager $\rightarrow$ RH).
 
 ### Technologies Utilisées
 - **Plateforme:** Salesforce Lightning Platform
@@ -235,15 +226,11 @@ public with sharing class Leave_Request_Controller {
 ```java
 public with sharing class HolidayService {
     
-    // Récupération depuis l'API externe
-    @AuraEnabled(cacheable=true)
-    public static List<Map<String, String>> getHolidays()
-    
-    // Synchronisation et persistance
+    // Récupération depuis l'API externe + Enregistrement
     @AuraEnabled(cacheable=true)
     public static List<Holiday__c> fetchHolidays(Integer year)
     
-    // Accès aux données locales
+    // Récupération des jours fériés enregistrés
     @AuraEnabled(cacheable=true)
     public static List<Holiday__c> getHolidays_MA()
 }
@@ -251,7 +238,6 @@ public with sharing class HolidayService {
 
 **Fonctionnalités:**
 - Appel REST vers l'API des jours fériés du Maroc
-- Mise en cache des données pour performance
 - Gestion d'erreurs et fallback
 - Synchronisation annuelle automatisée
 

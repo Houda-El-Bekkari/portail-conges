@@ -1,35 +1,5 @@
 public with sharing class HolidayService {
 
-    @AuraEnabled(cacheable=true)
-    public static List<Map<String, String>> getHolidays() {
-        List<Map<String, String>> holidays = new List<Map<String, String>>();
-        
-        try {
-            HttpRequest req = new HttpRequest();
-            // Named Credentials !!!
-            String year = String.valueOf(Date.today().year());
-            req.setEndpoint('callout:Holidays' + year + '/MA');
-            req.setMethod('GET');
-            req.setTimeout(20000);
-            
-            HttpResponse res = new Http().send(req);
-            // use wrapper !!!
-            if (res.getStatusCode() == 200) {
-                List<Object> apiHolidays = (List<Object>) JSON.deserializeUntyped(res.getBody());
-                for (Object obj : apiHolidays) {
-                    Map<String, Object> holiday = (Map<String, Object>) obj;
-                    holidays.add(new Map<String, String>{
-                        'date' => (String) holiday.get('date'),
-                        'name' => (String) holiday.get('localName')
-                    });
-                }
-            }
-        } catch (Exception e) {
-            System.debug('Error: ' + e.getMessage());
-        }
-        
-        return holidays;
-    }
     
     @AuraEnabled(cacheable=true)
     public static List<Holiday__c> fetchHolidays(Integer year) {

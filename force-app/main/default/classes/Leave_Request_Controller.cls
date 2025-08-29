@@ -22,7 +22,6 @@ public with sharing class Leave_Request_Controller {
     public static Leave_Request__c createRequest(Leave_Request__c request) {
         insert request;
         return request;
-
     }
 
     @AuraEnabled

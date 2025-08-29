@@ -340,7 +340,7 @@
             <field>Name</field>
             <operator>Contains</operator>
             <value>
-                <stringValue>System</stringValue>
+                <stringValue>RH Profile</stringValue>
             </value>
         </filters>
         <getFirstRecordOnly>true</getFirstRecordOnly>
@@ -418,8 +418,8 @@ now it&apos;s waiting for your approval</text>
     </textTemplates>
     <textTemplates>
         <name>ManagerNotificationTitle</name>
-        <isViewedAsPlainText>false</isViewedAsPlainText>
-        <text>&lt;p&gt;A new leave request was submitted&lt;/p&gt;</text>
+        <isViewedAsPlainText>true</isViewedAsPlainText>
+        <text>A new leave request was submitted</text>
     </textTemplates>
     <textTemplates>
         <name>notificationbody</name>
