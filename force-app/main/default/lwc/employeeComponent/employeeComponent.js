@@ -23,13 +23,15 @@ export default class Calender extends LightningElement {
     // Component state
     jsInitialised = false;
     flatpickrInitialized = false;
-    calendarInitialized = false; // Add this missing flag
+    calendarInitialized = false;
     startDatePicker = null;
     endDatePicker = null;
     
+    balanceWire;
+    holidaysWire;
+    
     @track holidays = [];
     @track holidaysLoaded = false;
-
     @track userBalance = 0;
 
     @track deltaSolde = 0;
@@ -123,11 +125,12 @@ export default class Calender extends LightningElement {
 
     // Add this wire method
     @wire(getSolde)
-    wiredUserBalance({ error, data }) {
-        if (data !== undefined) {
-            this.userBalance = data;
-        } else if (error) {
-            console.error('Error fetching user balance:', error);
+    wiredUserBalance(result) {
+        this.balanceWire = result; // ✅ Now 'result' exists
+        if (result.data !== undefined) {
+            this.userBalance = result.data;
+        } else if (result.error) {
+            console.error('Error fetching user balance:', result.error);
             this.userBalance = 0;
         }
     }
@@ -494,8 +497,28 @@ export default class Calender extends LightningElement {
 
     // Centralized method to refresh all data
     async refreshData() {
-        await refreshApex(this.req);
-        this.refreshCalendarEvents();
+        try {
+            const refreshPromises = [];
+            
+            if (this.req) {
+                refreshPromises.push(refreshApex(this.req));
+            }
+            
+            if (this.balanceWire) {
+                refreshPromises.push(refreshApex(this.balanceWire));
+            }
+            
+            if (this.holidaysWire) {
+                refreshPromises.push(refreshApex(this.holidaysWire));
+            }
+            
+            await Promise.all(refreshPromises);
+            this.refreshCalendarEvents();
+            
+        } catch (error) {
+            console.error('Refresh error:', error);
+            this.showToast('Error', 'Failed to refresh data', 'error');
+        }
     }
 
     // ========== EVENT HANDLERS ==========

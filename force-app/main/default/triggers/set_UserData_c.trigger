@@ -17,6 +17,5 @@ trigger set_UserData_c on User (after insert) {
         insert userDataToInsert;
         System.debug('Created ' + userDataToInsert.size() + ' UserData records');
     }
-    
 
 }

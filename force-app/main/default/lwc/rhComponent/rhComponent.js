@@ -11,6 +11,7 @@ export default class RhComponent extends LightningElement {
     @track wiredRequestsResult;
     @track selectedRequestForApproval = null;
     @track approvalComments = '';
+    @track isRefreshing = false;
 
     // Wire service pour récupérer toutes les demandes
     @wire(getRequests) 
@@ -118,8 +119,6 @@ export default class RhComponent extends LightningElement {
         this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }
 
-
-
     // Getters pour l'historique des demandes traitées par RH
     get rhApprovedRequests() {
         return this.requestsData.filter(req => req.Status__c === 'Approved');
@@ -129,4 +128,17 @@ export default class RhComponent extends LightningElement {
         return this.requestsData.filter(req => req.Status__c === 'Rejected');
     }
 
+    async handleRefresh() {
+        if (this.isRefreshing) return;
+        
+        this.isRefreshing = true;
+        try {
+            await refreshApex(this.wiredRequestsResult);
+            
+        } catch (error) {
+            console.error('Erreur de rafraîchissement:', error);
+            this.showToast('Erreur', 'Échec du rafraîchissement des données', 'error');
+        }
+        this.isRefreshing = false;
+    }
 }

@@ -24,6 +24,8 @@ export default class ManagerComponent extends LightningElement {
     @track selectedRequestForApproval = null;
     @track approvalComments = '';
 
+    @track isRefreshing = false;
+
     // ========== WIRE SERVICES ==========
     @wire(getHolidays_MA)
     wiredHolidays(result) {
@@ -397,6 +399,28 @@ export default class ManagerComponent extends LightningElement {
             
             console.log('Manager - Events refreshed');
         }
+    }
+
+    // Add this method
+    async handleRefresh() {
+        if (this.isRefreshing) return;
+        
+        this.isRefreshing = true;
+        try {
+            // Refresh wire services
+            await Promise.all([
+                refreshApex(this.wiredRequestsResult),
+                refreshApex(this.holidaysWire)
+            ]);
+            
+            // Refresh calendar events
+            this.refreshCalendarEvents();
+            
+        } catch (error) {
+            console.error('Refresh error:', error);
+            this.showToast('Error', 'Failed to refresh data', 'error');
+        }
+        this.isRefreshing = false;
     }
 
     showToast(title, message, variant) {
