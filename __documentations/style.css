@@ -56,13 +56,13 @@ h3::before {
 
 h4 {
     counter-increment: h4-n;
-    font-size: 100%;
+    font-size: 125%;
     /* display: block;
     color: #9673A6;
     border-bottom: 3.5px solid;
     border-left: 5px solid;
     border-image: linear-gradient(to right, #E1D5E7, white) 1; */
-    padding: 0 0 0 10px;
+    padding-left: 10px;
     margin: 4px 0;
     font-weight: bold;
     font-family: Arial, sans-serif;
@@ -90,9 +90,10 @@ pre{
   /* background: #eee ; */
   border-radius:10px;
   border:1px solid;
+  border-left:3px solid rgb(72, 147, 233);
   font-weight:bold;
   overflow: hidden;
   white-space: pre-wrap;}
 
-/* pre:has(.language-mermaid){background:#ffd;border-color:orange;border-left:5px solid orange } */
+/* pre:has(.language-java){background:#ffd;border-color:orange;border-left:5px solid orange } */
 

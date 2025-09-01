@@ -1,6 +1,18 @@
 <template>
     <lightning-card title="Manager - Leave Requests">
+        <!-- refresh button -->
+        <lightning-button-icon 
+            slot="actions" 
+            icon-name="utility:refresh" 
+            onclick={handleRefresh} 
+            title="Refresh"
+            disabled={isRefreshing}>
+        </lightning-button-icon>
+        
         <div class="slds-m-around_medium">
+        
+            <lightning-spinner if:true={isRefreshing} size="small" class="slds-m-bottom_medium"></lightning-spinner>
+            
             <!-- Calendar Section -->
             <div class="slds-m-bottom_medium">
                 <label class="slds-form-element__label slds-m-bottom_small">Click on leave requests in the calendar to approve/reject</label>

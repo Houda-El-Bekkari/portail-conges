@@ -1,32 +1,45 @@
 <link rel="stylesheet" href="style.css">
 
 # Documentation Technique - Portail de Gestion des Demandes de Congés
+ 
+**Date:** 31 août 2025  
+**Auteurs:**
+- [Houda EL BEKKARI](https://github.com/Houda-El-Bekkari)
+- [Moad CHERGUI](https://github.com/moad-cher)
 
-**Version:** 1.0  
-**Date:** 26 août 2025  
-**Auteur:** Équipe de développement  
 **Projet:** Portail collaboratif de gestion des demandes de congés et absences
 
 ---
 
 ## 📋 Table des Matières
 
-
+1. [🏗️ Vue d'ensemble](#-vue-densemble)
+2. [🏛️ Architecture Technique](#️-architecture-technique)
+3. [📊 Modèle de Données](#-modèle-de-données)
+4. [⚙️ Classes Apex](#️-classes-apex)
+5. [🔧 Automation](#-automation)
+6. [🎨 Lightning Web Components](#-lightning-web-components)
+7. [🔗 Intégrations](#-intégrations)
+8. [🧪 Tests et Couverture](#-tests-et-couverture)
+9. [🔐 Sécurité et Permissions](#-sécurité-et-permissions)
+10. [🚀 Déploiement](#-déploiement)
+11. [🔧 Support et Dépannage](#support-et-dépannage)
 
 ---
 
 ## 🏗️ Vue d'ensemble
 
 ### Objectif du Projet
-Le portail de gestion des demandes de congés est une solution Salesforce complète permettant aux employés de soumettre des demandes de congés via une interface moderne et intuitive, avec un workflow d'approbation à deux niveaux (Manager $\rightarrow$ RH).
+Le portail de gestion des demandes de congés est une solution Salesforce complète permettant aux employés de soumettre des demandes de congés via une interface moderne et intuitive, avec un workflow d'approbation à deux niveaux (Manager → RH) et une gestion automatisée des permissions utilisateurs.
 
 ### Technologies Utilisées
 - **Plateforme:** Salesforce Lightning Platform
 - **Frontend:** Lightning Web Components (LWC)
-- **Backend:** Apex Classes
-- **Automation:** Flow Builder
+- **Backend:** Apex Classes et Triggers
+- **Automation:** Triggers + Flow Builder
 - **Intégrations:** REST API (jours fériés)
-- **Testing:** Apex Test Classes
+- **Testing:** Apex Test Classes (100% couverture)
+- **Sécurité:** Profiles et Permission Sets avec assignment automatique
 
 ---
 
@@ -35,50 +48,65 @@ Le portail de gestion des demandes de congés est une solution Salesforce compl�
 ### Architecture Globale
 
 ```mermaid
-graph TB
-    subgraph "Présentation Layer"
-        FC[fullCalendar LWC]
-        MC[managerComponent LWC]
-        RC[rhComponent LWC]
-        HD[historiqueDemandes LWC]
+graph LR
+    subgraph "Présentation Layer (LWC)"
+        EC[employeeComponent]
+        MC[managerComponent]
+        MCC[managerCalendar]
+        RC[rhComponent]
     end
     
-    subgraph "Business Logic Layer"
+    subgraph "Business Logic Layer (Apex)"
         LRC[Leave_Request_Controller]
         HS[HolidayService]
-        HDC[HistoriqueDemandesController]
     end
     
     subgraph "Data Layer"
         LR[Leave_Request__c]
         UD[UserData__c]
         H[Holiday__c]
+        U[User]
+    end
+    
+    subgraph "Automation Layer"
+        subgraph Triggers
+            UT1[set_UserData_c Trigger]
+            UT2[AssignLeaveRequestPermSet Trigger]
+        end
+        subgraph Flows
+            FLOW[leave_request_status_mail]
+        end
+    end
+    
+    subgraph "Security Layer"
+        PS[leave_request_access PermissionSet]
     end
     
     subgraph "External Services"
         API[Holidays API Morocco]
     end
     
-    subgraph "Automation Layer"
-        FLOW[leave_request_status_mail]
-    end
-    
-    FC --> LRC
+    EC --> LRC
     MC --> LRC
+    MCC --> LRC
     RC --> LRC
-    HD --> HDC
     LRC --> LR
     LRC --> UD
     HS --> H
     HS --> API
     FLOW --> LR
+    U --> UT1
+    U --> UT2
+    UT1 --> UD
+    UT2 --> PS
 ```
 
 ### Patterns d'Architecture
 - **MVC Pattern:** Séparation claire entre composants LWC (View), Controllers Apex (Controller), et objets Salesforce (Model)
 - **Service Layer:** HolidayService pour l'intégration API
 - **Repository Pattern:** Classes Controller agissent comme repositories
-- **Observer Pattern:** Flows déclenchés par les changements de statut
+- **Observer Pattern:** Triggers pour automation et Flows pour notifications
+- **Auto-Provisioning Pattern:** Assignment automatique des permissions via triggers
 
 ---
 
@@ -95,7 +123,7 @@ Status__c (Picklist) - Statut de la demande
 Reason__c (Text Long) - Motif/Description
 Type__c (Picklist) - Type de congé
 Business_Days__c (Number) - Nombre de jours ouvrables
-Manager_Comments__c (Text Long) - Commentaires du manager
+Manager_Comments__c (Text Long) - Commentaires du manager/RH
 CreatedBy (Lookup to User) - Demandeur
 ```
 
@@ -111,15 +139,15 @@ CreatedBy (Lookup to User) - Demandeur
 - `Training Leave` - Formation
 - `Compensatory Time Off` - RTT
 
-#### 2. UserData__c (Données Utilisateur)
+#### UserData__c (Données Utilisateur)
 ```java
 // Champs principaux
 User__c (Lookup to User) - Utilisateur
-Solde__c (Number) - Solde de congés disponibles
-Manager__c (Lookup to User) - Manager de l'utilisateur
+Solde__c (Number) - Solde de congés disponibles (défaut: 22)
+Name (Auto-generated) - "{User.Name} - Leave Data"
 ```
 
-#### 3. Holiday__c (Jours Fériés)
+#### Holiday__c (Jours Fériés)
 ```java
 // Champs principaux  
 Name (Text) - Nom du jour férié
@@ -131,7 +159,8 @@ Date__c (Date) - Date du jour férié
 ```mermaid
 erDiagram
     User ||--o{ Leave_Request__c : "creates"
-    User ||--o{ UserData__c : "has"
+    User ||--|| UserData__c : "has"
+    User ||--o{ PermissionSetAssignment : "assigned"
     
     Leave_Request__c {
         Id id
@@ -142,13 +171,13 @@ erDiagram
         Number Business_Days__c
         Text Reason__c
         Text Manager_Comments__c
+        Id CreatedById
     }
     
     UserData__c {
         Id id
         Id User__c
         Number Solde__c
-        Id Manager__c
     }
     
     Holiday__c {
@@ -156,20 +185,26 @@ erDiagram
         String Name
         Date Date__c
     }
+    
+    PermissionSetAssignment {
+        String Name
+        Id AssigneeId
+        Id PermissionSetId
+    }
 ```
 
 ---
 
 ## ⚙️ Classes Apex
 
-### 1. Leave_Request_Controller.cls
+### Leave_Request_Controller.cls
 
 **Responsabilité:** Gestion CRUD des demandes de congés et logique métier d'approbation
 
 ```java
 public with sharing class Leave_Request_Controller {
     
-    // Méthodes de consultation
+    // Méthodes CRUD
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getRequests()
     
@@ -179,7 +214,6 @@ public with sharing class Leave_Request_Controller {
     @AuraEnabled(cacheable=true)
     public static List<Leave_Request__c> getAllRequests()
     
-    // Méthodes CRUD
     @AuraEnabled
     public static Leave_Request__c createRequest(Leave_Request__c request)
     
@@ -213,13 +247,14 @@ public with sharing class Leave_Request_Controller {
 ```
 
 **Règles Métier Implémentées:**
-- Seules les demandes "Pending" peuvent être modifiées
-- Vérification du solde avant approbation
-- Déduction automatique du solde lors de l'approbation
+- Seules les demandes "Pending" peuvent être modifiées par l'employé
+- Vérification du solde avant approbation manager
+- Déduction automatique du solde lors de l'approbation RH finale
 - Calcul des jours ouvrables excluant weekends et fériés
-- Validation des transitions de statut
+- Validation des transitions de statut (Pending → ManagerApproved → Approved/Rejected)
 
-### 2. HolidayService.cls
+
+### HolidayService.cls
 
 **Responsabilité:** Intégration avec l'API des jours fériés et gestion des données de vacances
 
@@ -233,126 +268,82 @@ public with sharing class HolidayService {
     // Récupération des jours fériés enregistrés
     @AuraEnabled(cacheable=true)
     public static List<Holiday__c> getHolidays_MA()
+
 }
 ```
 
 **Fonctionnalités:**
 - Appel REST vers l'API des jours fériés du Maroc
-- Gestion d'erreurs et fallback
-- Synchronisation annuelle automatisée
+- transformations de données json pour stockage
 
-### 3. HistoriqueDemandesController.cls
+---
+## Automation
+### 🔧 Triggers
 
-**Responsabilité:** Gestion de l'historique et des statistiques des demandes
+#### set_UserData_c.trigger
+
+**Type:** After Insert sur User  
+**Responsabilité:** Création automatique des données utilisateur
 
 ```java
-public with sharing class HistoriqueDemandesController {
+trigger set_UserData_c on User (after insert) {
+    List<UserData__c> userDataToInsert = new List<UserData__c>();
+    for(User u : Trigger.new) {
+        if(u.IsActive) {
+            UserData__c userData = new UserData__c();
+            userData.User__c = u.Id;
+            userData.Solde__c = 22; // Solde annuel standard
+            userData.Name = u.Name + ' - Leave Data';
+            userDataToInsert.add(userData);
+        }
+    }
     
-    @AuraEnabled(cacheable=true)
-    public static List<Leave_Request__c> getHistoricalRequests()
-    
-    @AuraEnabled(cacheable=true) 
-    public static Map<String, Integer> getRequestsStats()
+    if(!userDataToInsert.isEmpty()) {
+        insert userDataToInsert;
+    }
 }
 ```
+
+**Fonctionnalités:**
+- Création automatique d'un UserData__c pour chaque nouvel utilisateur actif
+- Attribution d'un solde par défaut de 22 jours
+- Naming convention automatique
+
+
+#### AssignLeaveRequestPermSet.trigger
+
+**Type:** After Insert, After Update sur User  
+**Responsabilité:** Assignment automatique des permissions
+
+```java
+trigger AssignLeaveRequestPermSet on User (after insert, after update) {
+    // Logique d'assignment du Permission Set 'leave_request_access'
+    // uniquement pour les utilisateurs avec profil 'Standard User' actifs
+    
+    // Collecte des utilisateurs éligibles (BULK PROCESSING)
+    Set<Id> userIdsToAssign = new Set<Id>();
+    for (User u : Trigger.new) {
+        if (u.ProfileId == stdProfileId && u.IsActive) {
+            userIdsToAssign.add(u.Id);
+        }
+    }
+    
+    // Vérification des assignments existants
+    // Assignment uniquement si pas déjà assigné
+    // Gestion d'erreurs avec try-catch
+}
+```
+
+**Fonctionnalités:**
+- Assignment automatique du Permission Set `leave_request_access`
+- Filtrage par profil (Standard User uniquement)
+- Vérification des assignments existants pour éviter les doublons
+- Gestion d'erreurs robuste
 
 ---
+### 🔄 Flows
 
-## 🎨 Lightning Web Components
-
-### 1. fullCalendar
-
-**Fichier:** fullCalendar
-
-**Responsabilité:** Interface principale pour la création et gestion des demandes
-
-**Fonctionnalités:**
-- Calendrier interactif avec Flatpickr
-- Formulaire de saisie avec validation
-- Affichage du solde utilisateur
-- Liste des demandes personnelles
-- Calcul en temps réel des jours ouvrables
-
-```javascript
-// Structure principale
-export default class FullCalendar extends LightningElement {
-    // État du composant
-    @track holidays = [];
-    @track userBalance = 0;
-    @track deltaSolde = 0;
-    
-    // Données du formulaire
-    @track startDate = '';
-    @track endDate = '';  
-    @track reason = '';
-    @track type = '';
-    
-    // Méthodes principales
-    connectedCallback()           // Initialisation
-    handleSubmit()               // Soumission du formulaire
-    validateRequiredFields()     // Validation
-    updateDeltaSolde()          // Calcul des jours
-}
-```
-
-**Intégrations:**
-- **Flatpickr:** Sélecteur de dates avancé
-- **FullCalendar.js:** Affichage calendaire
-- **Wire Services:** Récupération des données en temps réel
-
-### 2. managerComponent
-
-**Fichier:** managerComponent
-
-**Responsabilité:** Interface de validation pour les managers
-
-**Fonctionnalités:**
-- Vue d'ensemble des demandes en attente
-- Actions d'approbation/rejet
-- Commentaires de validation
-- Tableau de bord des demandes par statut
-
-```javascript
-export default class ManagerComponent extends LightningElement {
-    // Données
-    @track requestsData = [];
-    @track selectedRequestForApproval = null;
-    @track approvalComments = '';
-    
-    // Actions
-    handleApproval(event)    // Approbation
-    handleRejection(event)   // Rejet  
-    openApprovalModal(event) // Interface de validation
-}
-```
-
-### 3. rhComponent
-
-**Fichier:** rhComponent
-
-**Responsabilité:** Interface de validation finale pour les RH
-
-**Fonctionnalités:**
-- Validation des demandes pré-approuvées
-- Approbation finale ou rejet
-- Vue globale de toutes les demandes
-
-### 4. historiqueDemandes
-
-**Fichier:** historiqueDemandes
-
-**Responsabilité:** Affichage de l'historique et statistiques
-
-**Fonctionnalités:**
-- Historique complet des demandes
-- Filtres par statut, date, type
-- Statistiques et rapports visuels
-
----
-
-## 🔄 Flows et Automatisations
-
-### 1. leave_request_status_mail
+#### leave_request_status_mail
 
 **Fichier:** leave_request_status_mail.flow-meta.xml
 
@@ -387,121 +378,367 @@ graph
     Email-E --> End
     N-M ---->End
 ```
+---
+
+## 🎨 Lightning Web Components
+
+### employeeComponent
+
+**Dossier:** : `employeeComponent`
+
+**Responsabilité:** Interface principale pour la création et gestion des demandes
+
+**Fonctionnalités:**
+- Calendrier interactif avec sélection de dates
+- Formulaire de saisie avec validation client-side
+- Affichage du solde utilisateur
+- Liste des demandes personnelles avec actions
+- Calcul automatique des jours ouvrables
+- Gestion des types de congés
+- Interface responsive
+
+### managerComponent
+
+**Dossier:**: `managerComponent`
+
+**Responsabilité:** Interface de validation pour les managers
+
+**Fonctionnalités:**
+- Vue d'ensemble des demandes en attente
+- Actions d'approbation/rejet avec commentaires
+- Modal de validation avec détails complets
+- Tableau de bord des demandes par statut
+
+
+
+### rhComponent
+
+**Dossier:**: `rhComponent`
+
+**Responsabilité:** Interface de validation finale pour les RH
+
+**Fonctionnalités:**
+- Validation des demandes pré-approuvées par les managers
+- Approbation finale avec déduction de solde
+- Vue globale de toutes les demandes
 
 ---
+
+
 
 ## 🔗 Intégrations
 
 ### API Jours Fériés Maroc
 
+**Named Credentials:** `Holidays.namedCredential-meta.xml`
+
 **Endpoint:** `https://date.nager.at/api/v3/PublicHolidays/{year}/MA`
-
-**Configuration:**
-- **Named Credential:** `Holidays_MA`
 - **Méthode:** GET
-- **Timeout:** 20 secondes
+- **Timeout:** 20 secondes  
 - **Format:** JSON
-
-**Structure de Réponse:**
-```json
-[
-  {
-    "date": "2025-01-01",
-    "localName": "Nouvel An",
-    "name": "New Year's Day"
-  }
-]
-```
+- **Authentification:** Anonymous
 
 **Gestion d'Erreurs:**
 - Retry automatique sur timeout
 - Fallback vers données en cache
 - Logging des erreurs pour monitoring
+- Graceful degradation si API indisponible
 
 ---
 
 ## 🧪 Tests et Couverture
 
-### Classes de Test
+### Leave_Request_Controller_Test.cls
 
-#### 1. Leave_Request_Controller_Test.cls
+**Couverture:** 100%  
+**Nombre de méthodes:** 23 tests
+
 ```java
 @isTest
 private class Leave_Request_Controller_Test {
-    // 21 méthodes de test
-    // Couverture: 100%
-    
+
     @TestSetup
-    static void makeData()  // Données de test
+    static void makeData() // Configuration des données de test
     
-    // Tests CRUD
+    // Tests des triggers
+    testUserDataTrigger()
+    testPermissionSetAssignmentTrigger()
+    testTriggerBulkProcessing()
+    testInactiveUserTrigger()
+    
+    // Tests CRUD basiques
     testGetRequests()
-    testCreateRequest() 
-    testUpdateRequest()
+    testGetMyRequests() 
+    testCreateRequest()
+    testUpdatePendingRequest()
+    testUpdateRequest_NonPendingRequest()
     testDeleteRequest()
+    testGetAllRequests()
     
-    // Tests Workflow
+    // Tests workflow Manager
     testApproveRequest_Success()
     testApproveRequest_InsufficientBalance()
     testRejectRequest_Success()
     
-    // Tests RH
+    // Tests workflow RH  
     testApproveRequestByRH_Success()
-    testRejectRequestByRH_InvalidStatus()
+    testApproveRequestByRH_InvalidStatus()
+    testRejectRequestByRH_Success()
     
-    // Tests Business Logic
+    // Tests logique métier
+    testGetSolde()
     testGetDeltaSolde_WithHolidays()
-    testGetSolde_NoUserData()
+    testGetDeltaSolde_WeekendOnly()
+    
+    // Tests couverture code
+    testTriggerCodeCoverage()
+    testPermissionSetNotFound()
 }
 ```
 
-#### 2. HolidaysService_Test.cls
-```java
-@isTest  
-private class HolidaysService_Test {
-    // 8 méthodes de test
-    // Couverture: 90%
-    
-    // Tests API Integration
-    testFetchHolidays_Success()
-    testFetchHolidays_HttpError()
-    testGetHolidays_Exception()
-    
-    // Mock HTTP Classes
-    HolidayServiceMockSuccess
-    HolidayServiceMockError
-    HolidayServiceMockInvalidJson
-}
+### Stratégie de Test
+
+**Données de Test:**
+- Création d'utilisateurs avec profils Standard User
+- Génération automatique de UserData__c via triggers
+- Données de congés avec différents statuts
+- Jours fériés pour test des calculs
+
+**Cas de Test Couverts:**
+- [x] Création/modification/suppression de demandes
+- [x] Workflows d'approbation complets
+- [x] Validation des règles métier
+- [x] Gestion des erreurs et cas limites
+- [x] Tests des triggers avec traitement bulk
+- [x] Tests des permissions et sécurité
+- [x] Calculs de jours ouvrables avec jours fériés
+
+### Couverture de Code
+
+| Classe/Trigger | Couverture | Statut |
+|----------------|:----------:|:------:|
+| Leave_Request_Controller | 100% | ✅ |
+| HolidayService | 100% | ✅ |
+| set_UserData_c | 100% | ✅ |
+| AssignLeaveRequestPermSet | 100% | ✅ |
+| **Total Projet** | **100%** | ✅ |
+
+><u>**NB:**</u> désactivez le flow avant d'éxecuter les testes
+
+---
+
+## 🔐 Sécurité et Permissions
+
+### Permission Set: leave_request_access
+
+```xml
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <classAccesses>
+        <apexClass>HolidayService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>Leave_Request_Controller</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>true</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>Leave_Request__c</object>
+        <viewAllFields>true</viewAllFields>
+        <viewAllRecords>false</viewAllRecords>
+    </objectPermissions>
+</PermissionSet>
 ```
 
-### Couverture de Code Globale
+**Permissions Accordées:**
+- Accès complet aux classes Apex du portail
+- CRUD on Leave_Request__c (sans Modify All Records pour sécurité)
+- Assignment automatique aux utilisateurs Standard User actifs (profil inmodifiable)
 
-| Classe | Couverture | Statut |
-| ---- | :--------: | :----: |
-| Leave_Request_Controller |100% |✅ |
-| HolidayService |     |    |
-| **Total**    |  **100%**  |   ✅   |
+**Sécurité Implementée:**
+- Row-level security via `with sharing` dans toutes les classes
+- Validation des permissions dans les triggers
+- Principe de moindre privilège
+
+### Permissions des Profiles
+
+#### Manager Profile
+![](images/image.png)
+
+#### RH Profile
+![](images/image.png)
+
+### Acces aux classes Apex
+`Setup`$\rightarrow$
+`Apex Classes`$\rightarrow$
+`Leave_Request_Controlle`/`HolidayService`$\rightarrow$
+`security`$\rightarrow$ 
+selectionnez **Manager Profile** et **RH Profile** depuit **Available Profiles** pui clickez `add`
 
 ---
 
 ## 🚀 Déploiement
 
-### Prérequis Techniques
+``` mermaid
+graph LR
+    subgraph "Utilisateurs"
+        EMP[Employé<br/>Standard User]
+        MAN[Manager<br/>Manager Profile]
+        RH[RH<br/>RH Profile]
+    end
+    
+    subgraph "Poste Client"
+        WEB[Navigateur Web<br/>Salesforce Lightning]
+    end
+    
+    subgraph "Salesforce Platform (Cloud)"
+        
+        subgraph "Présentation Layer"
+            LWC1[employeeComponent]
+            LWC2[managerComponent] 
+            LWC3[rhComponent]
+        end
+        
+        subgraph "Business Logic Layer"
+            APEX1[Leave_Request_Controller]
+            APEX2[HolidayService]
+        end
+        
+        subgraph "Automation Layer"
+            TRIG1[set_UserData_c<br/>Trigger]
+            TRIG2[AssignLeaveRequestPermSet<br/>Trigger]
+            FLOW[leave_request_status_mail<br/>Flow]
+        end
+        
+        subgraph "Security Layer"
+            PS[leave_request_access<br/>Permission Set]
+            PROF1[Manager Profile]
+            PROF2[RH Profile]
+        end
+        
+        subgraph "Data Layer"
+            OBJ1[Leave_Request__c]
+            OBJ2[UserData__c]
+            OBJ3[Holiday__c]
+            USER[User]
+        end
+        
+    end
+    
+    subgraph "Services Externes"
+        API[API Jours Fériés Maroc<br/>date.nager.at]
+        NC[Named Credentials<br/>Holidays.namedCredential]
+    end
+    
+    %% Relations Utilisateurs
+    EMP --> WEB
+    MAN --> WEB
+    RH --> WEB
+    
+    %% Navigation vers composants
+    WEB --> LWC1
+    WEB --> LWC2
+    WEB --> LWC3
 
-1. **Salesforce Org Requirements:**
-   - Lightning Experience activé
-   - My Domain configuré
-   - API REST activée
+    
+    %% Communication LWC vers Apex
+    LWC1 --> APEX1
+    LWC2 --> APEX1
+    LWC3 --> APEX1
+    LWC1 --> APEX2
+    
+    %% Apex vers Data
+    APEX1 --> OBJ1
+    APEX1 --> OBJ2
+    APEX2 --> OBJ3
+    
+    %% Triggers
+    USER --> TRIG1
+    USER --> TRIG2
+    TRIG1 --> OBJ2
+    TRIG2 --> PS
+    
+    %% Flow notifications
+    OBJ1 --> FLOW
+    
+    %% Security
+    PS --> USER
+    PROF1 --> LWC2
+    PROF2 --> LWC3
+    
+    %% API Integration
+    APEX2 --> NC
+    NC --> API
+    
+    %% Style
+    classDef userStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef componentStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef apexStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef dataStyle fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef securityStyle fill:#fff8e1,stroke:#f57f17,stroke-width:2px
+    classDef externalStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    
+    class EMP,MAN,RH userStyle
+    class LWC1,LWC2,LWC3,LWC4 componentStyle
+    class APEX1,APEX2 apexStyle
+    class OBJ1,OBJ2,OBJ3,USER dataStyle
+    class PS,PROF1,PROF2,TRIG1,TRIG2,FLOW securityStyle
+    class API,NC externalStyle
+```
 
-2. **Permissions Requises:**
-   - Modify All Data (pour les tests)
-   - Create and Customize Applications
-   - Manage Users
+
+### Ordre de Déploiement Recommandé
+
+1. **Named Credentials** (Holidays_MA, Holidays)
+2. **Objets personnalisés** (Holiday__c, UserData__c, Leave_Request__c)
+3. **Permission Set** (leave_request_access)
+4. **Classes Apex** (HolidayService, Leave_Request_Controller)
+5. **Triggers** (set_UserData_c, AssignLeaveRequestPermSet)
+6. **Classes de test** (Leave_Request_Controller_Test)
+7. **Lightning Web Components** (employeeComponent, managerComponent, etc.)
+8. **Flows** (leave_request_status_mail)
 
 
-### Scripts de Déploiement
+### Post-Déploiement
 
-#### 1. Script Annuel (yearly_script.apex)
+#### **Initialisation des jours fériés et des solde**
+```bash
+sf apex execute -f scripts/apex/yearly_script.apex --target-org [org name]
+```
+
+#### **Activation du flow**
+
+`Setup`$\rightarrow$
+`Flows`$\rightarrow$
+`leave_request_status_mail`$\rightarrow$
+**`Activate`**
+
+#### Création de profils et configuration des accès
+
+Création des profils **Manager Profile** et **RH Profile**, et modification de leur accès aux classes Apex comme indiqué dans la partie <u>***Sécurité et Permissions***</u>
+
+#### edit page
+⚙️ $\rightarrow$
+`edit page`$\rightarrow$
+ajoutez les trois composant LWC$\rightarrow$
+filtre de visibilité selon le profile (dans l’éditeur de page):  
+- **employeeComponent**: *Standard User*
+- **managerComponent**: *Manager Profile*
+- **rhComponent**: *RH Profile*
+
+
+<!-- 
+---
+
+## 🔧 Maintenance
+
+### Scripts de Maintenance
+
+#### 1. yearly_script.apex - Remise à Zéro Annuelle
 ```java
 // Remise à zéro des soldes annuels
 List<UserData__c> users = [SELECT Id, Solde__c FROM UserData__c];
@@ -510,104 +747,48 @@ for (UserData__c user : users) {
 }
 update users;
 
-// Synchronisation des jours fériés année suivante
+// Synchronisation des jours fériés année suivante  
 HolidayService.fetchHolidays(Date.today().year() + 1);
 ```
-
-### Ordre de Déploiement
-
-1. **Objets personnalisés** (Holiday__c, UserData__c, Leave_Request__c)
-2. **Classes Apex** (HolidayService, Leave_Request_Controller)
-1. **Classes de test**
-4. **Lightning Web Components**
-5. **Flows**
-1. **Named Credentials**
-2. **Données initiales** (UserData__c)
-
-### Commandes SFDX
-
-```bash
-# Déploiement complet
-sfdx force:source:deploy -p force-app/main/default -u myorg
-
-# Tests uniquement  
-sfdx force:apex:test:run -n "Leave_Request_Controller_Test,HolidaysService_Test" -u myorg
-
-# Création des données initiales
-sfdx force:apex:execute -f scripts/apex/yearly_script.apex -u myorg
-```
+-->
 
 ---
 
-## 🔧 Maintenance
+## Support et Dépannage
 
-### Scripts de Maintenance
+### Problèmes Courants et Solutions
 
-#### 1. Remise à Zéro Annuelle
-- **Fichier:** yearly_script.apex
-- **Fréquence:** Annuelle (1er janvier)
-- **Action:** Reset des soldes + import jours fériés
+#### Le menu `Leave Type` ne fonctionne pas
+**Cause**: Permission Set n'est pas assigné  
+**Solution**: Modifier les informations d'utilisateur (car le Trigger se déclenche avec l'insertion et modification)
 
-#### 2. Synchronisation Jours Fériés
-- **Méthode:** `HolidayService.fetchHolidays(year)`
-- **Déclencheur:** Automatique ou manuel
-- **Gestion d'erreurs:** Retry + notification
+#### Erreur de soumission de demande 
+**Cause**: le Flow envoie de notification au manageur d'utilisateur s'il n'y a pas de manager , the flow breaks  
+**Solution**: en dois assigner un manager à chaque employé (Standard user)
 
-### Monitoring et Logs
+#### Erreur d'aprouver la demande par manager
+**Cause**: le Flow envoie de notification à chaque utilisateur de profile ***RH Profile***, s'il n'y a pas de RH, the flow breaks  
+**Solution**: en dois avoir au moins un utilisateur de profile ***RH Profile***
 
-#### Points de Surveillance
-- Taux de réussite des appels API
-- Performance des requêtes SOQL
-- Taux d'erreur des workflows d'approbation
-- Utilisation des limites Salesforce
+#### Erreur API Jours Fériés
+**Symptôme:** Calculs incorrects des jours ouvrables et aucun jour férié n'apparait dans les calendrier   
+**Cause:** API externe indisponible ou Named Credential mal configuré  
+**Solution:** Vérifier la connectivité, effectuer un import manuel des jours fériés si nécessaire, ou mettre à jour le Named Credential avec l'URL de l'API (c'est publique).
 
-#### Métriques Clés
-- **Nombre de demandes/mois**
-- **Temps moyen d'approbation**
-- **Taux d'approbation par manager**
-- **Utilisation des soldes**
-
-### Procédures de Sauvegarde
-
-```java
-// Export des demandes pour archivage
-List<Leave_Request__c> requests = [
-    SELECT Id, Start_Date__c, End_Date__c, Status__c, 
-           CreatedBy.Name, CreatedDate, Type__c
-    FROM Leave_Request__c 
-    WHERE CreatedDate = LAST_YEAR
-];
-```
-
----
-
-## 📞 Support et Dépannage
-
-### Problèmes Courants
-
-#### 1. Erreur "Solde Insuffisant"
-**Cause:** UserData__c manquante ou solde = 0  
-**Solution:** Vérifier l'existence du UserData__c pour l'utilisateur
-
-#### 2. Jours Fériés Non Chargés  
-**Cause:** Échec API ou Named Credential incorrecte  
-**Solution:** Vérifier la connectivité et relancer `fetchHolidays()`
-
-#### 3. Notifications Non Reçues
-**Cause:** Flow désactivé ou template email manquant  
-**Solution:** Vérifier l'activation du flow `leave_request_status_mail`
+#### Flow de notification non déclenché
+**Symptôme:** Emails non envoyés lors des changements de statut  
+**Cause:** Flow désactivé ou problème de template  
+**Solution:** Vérifier activation du flow `leave_request_status_mail` , les email peuvent étre dans le spam
 
 ### Contacts Support
 
-- **Développeur Principal:** [Email]
-- **Admin Salesforce:** [Email]  
-- **Product Owner:** [Email]
 
 ---
 
-**Fin de la Documentation Technique**
+## Améliorations Possibles
+- Workflow d'approbation configurable par département
+- Gestion multi-devises pour entreprises internationales
+- Intégration systèmes RH externes
+- Dashboard temps réel pour managers
 
-*Version 1.0 - 26 août 2025*  
-*Prochaine révision prévue : 26 novembre 2025*
-
- -->
+---

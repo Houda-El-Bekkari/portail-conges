@@ -24,8 +24,7 @@ for (User u : stdUsers) {
     }
 }
 
-if (!assignments.is
-Empty()) {
+if (!assignments.isEmpty()) {
     insert assignments;
     System.debug('Assigned perm set to ' + assignments.size() + ' users.');
 } else {

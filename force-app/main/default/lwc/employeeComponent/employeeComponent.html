@@ -1,9 +1,18 @@
 <template>
     <lightning-card title={formTitle}>
+        <!-- Simple refresh button -->
+        <lightning-button-icon 
+            slot="actions" 
+            icon-name="utility:refresh" 
+            onclick={refreshData} 
+            title="Refresh">
+        </lightning-button-icon>
+        
         <!-- Simple Solde Display -->
         <div class="slds-m-around_medium slds-border_bottom">
             <p class="slds-text-body_regular slds-p-bottom_small">
                 <strong>Solde: </strong>{userBalance} days
+                <lightning-spinner if:true={isRefreshing} size="xx-small" class="slds-m-left_small"></lightning-spinner>
             </p>
         </div>
 
@@ -110,18 +119,4 @@
         </div>
     </lightning-card>
     
-    <c-historique-demandes>
-        <lightning-card title="Historique des demandes">
-            <template if:true={demandes}>
-                <lightning-datatable
-                    key-field="Id"
-                    data={demandes}
-                    columns={columns}>
-                </lightning-datatable>
-            </template>
-            <template if:true={error}>
-                <p class="slds-text-color_error">{error}</p>
-            </template>
-        </lightning-card>
-    </c-historique-demandes>
 </template>

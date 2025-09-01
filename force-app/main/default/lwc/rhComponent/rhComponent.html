@@ -1,6 +1,17 @@
 <template>
     <lightning-card title="RH - Demandes de Congé Approuvées par le Manager">
+        <!-- refresh button -->
+        <lightning-button-icon 
+            slot="actions" 
+            icon-name="utility:refresh" 
+            onclick={handleRefresh} 
+            title="Refresh"
+            disabled={isRefreshing}>
+        </lightning-button-icon>
+        
         <div class="slds-m-around_medium">
+            <lightning-spinner if:true={isRefreshing} size="small" class="slds-m-bottom_medium"></lightning-spinner>
+            
             <template if:true={managerApprovedRequests.length}>
                 <template for:each={managerApprovedRequests} for:item="request">
                     <div key={request.Id} class="slds-box slds-m-bottom_small request-card" onclick={handleRequestClick} data-id={request.Id}>
