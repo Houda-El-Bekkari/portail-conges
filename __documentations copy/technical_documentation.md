@@ -52,6 +52,7 @@ graph LR
     subgraph "Présentation Layer (LWC)"
         EC[employeeComponent]
         MC[managerComponent]
+        MCC[managerCalendar]
         RC[rhComponent]
     end
     
@@ -87,6 +88,7 @@ graph LR
     
     EC --> LRC
     MC --> LRC
+    MCC --> LRC
     RC --> LRC
     LRC --> LR
     LRC --> UD
@@ -102,6 +104,7 @@ graph LR
 ### Patterns d'Architecture
 - **MVC Pattern:** Séparation claire entre composants LWC (View), Controllers Apex (Controller), et objets Salesforce (Model)
 - **Service Layer:** HolidayService pour l'intégration API
+- **Repository Pattern:** Classes Controller agissent comme repositories
 - **Observer Pattern:** Triggers pour automation et Flows pour notifications
 - **Auto-Provisioning Pattern:** Assignment automatique des permissions via triggers
 
@@ -776,8 +779,6 @@ HolidayService.fetchHolidays(Date.today().year() + 1);
 **Symptôme:** Emails non envoyés lors des changements de statut  
 **Cause:** Flow désactivé ou problème de template  
 **Solution:** Vérifier activation du flow `leave_request_status_mail` , les email peuvent étre dans le spam
-
-### Contacts Support
 
 
 ---
